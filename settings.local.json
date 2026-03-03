@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command:*)",
+      "Bash(keil-build)",
+      "Bash(cmd.exe /c \"where keil-build\")",
+      "Bash(cmd.exe /c:*)",
+      "Bash(\"D:/Programfile/MDK/Core/UV4/UV4.exe\" -j0 -o:*)",
+      "Bash(\"D:/Programfile/MDK/Core/UV4/UV4.exe\" -b \"E:/CODE_project/BalanceSoldier/ChassisControl/CHASSIS_Patience/Project/Project.uvprojx\" -j0 -t Target -o \"E:/CODE_project/BalanceSoldier/ChassisControl/CHASSIS_Patience/Project/.vscode/uv4.log\")",
+      "Bash(\"D:/Programfile/MDK/Core/UV4/UV4.exe\":*)",
+      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -File:*)",
+      "mcp__plugin_github_github__get_file_contents",
+      "mcp__MiniMax__understand_image",
+      "WebSearch",
+      "WebFetch(domain:docs.anthropic.com)"
+    ]
+  }
+}

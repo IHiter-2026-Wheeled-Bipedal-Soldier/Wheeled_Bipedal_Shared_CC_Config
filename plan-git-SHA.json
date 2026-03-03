@@ -1,0 +1,33 @@
+{
+  "git_branch": "devlearn-notes-writing",
+  "plans": [
+    {
+      "metadata": {
+        "plan_id": "gateA-plan",
+        "created_at": "2026-03-02T10:00:00+08:00",
+        "status": "completed"
+      },
+      "paths": {
+        "plan_file_path": "References/PlanPrompt/gateA-plan.json"
+      },
+      "git_sha": {
+        "base_plan_sha": "abc",
+        "head_plan_sha": "c903f779f64793ef12ed3baaceb49fc777c3af38"
+      },
+      "tasks": {
+        "Task_1": {
+          "task_name": "A",
+          "status": "completed",
+          "completed_at": "2026-03-02T10:10:00Z",
+          "head_sha": "s1"
+        },
+        "Task_2": {
+          "task_name": "B",
+          "status": "completed",
+          "completed_at": "2026-03-02T09:59:10Z",
+          "head_sha": "c903f779f64793ef12ed3baaceb49fc777c3af38"
+        }
+      }
+    }
+  ]
+}
