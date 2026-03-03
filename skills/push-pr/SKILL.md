@@ -1,10 +1,10 @@
 ---
 name: push-pr
-description: 'Push current branch to origin and create or update a GitHub PR. Use when user says "/push-pr", "push and open PR", or wants to submit their branch for review. Handles protected-branch detection: if on main/master/v1-stable, creates a sub-branch automatically before pushing. If not on protected branch, asks user what to do via AskUserQuestion.'
+description: 'Two-stage push + PR workflow. First run performs local merge validation and review handoff; second run pushes and creates/updates PR. If current branch is main or release/*, auto-create push-pr sub-branch and default PR base to current protected branch.'
 allowed-tools: Bash(git *), Bash(gh *)
 ---
 
-# Push Branch and Open/Update PR
+# Push Branch and Open/Update PR (Two-Stage)
 
 ## Context (auto-loaded at start)
 
@@ -12,22 +12,31 @@ allowed-tools: Bash(git *), Bash(gh *)
 - Remote tracking status: !`git status -sb`
 - Recent commits (not yet on remote): !`git log @{u}..HEAD --oneline 2>/dev/null || git log -5 --oneline`
 
+## Mandatory Protocol
+
+- `/push-pr` uses explicit two-stage flow:
+  - Stage 1 (`merge-check`): perform local merge validation and hand off for manual review.
+  - Stage 2 (`push-pr`): after user confirms review/resolve done, push and create/update PR.
+- If current branch is protected (`main` or `release/*`), you must automatically create `push-pr/<name>` sub-branch first.
+- On protected branch start, default PR base branch must be the original protected branch.
+
 ## Behavior by Branch State
 
-### Case A: Currently on a PROTECTED branch (main / master / v1-stable)
+### Case A: Currently on a PROTECTED branch (main / release/*)
 
 If the user is on a protected branch:
 
-1. Inform the user: "You are on a protected branch. A sub-branch will be created for your PR."
-2. Use AskUserQuestion to ask: "What should the PR branch be named? (suggestion: `work/<feature-name>`)"
-3. Create the branch:
+1. Capture protected source branch as `ORIGINAL_BASE`.
+2. Inform the user: "You are on a protected branch. A push-pr sub-branch will be created automatically."
+3. Use AskUserQuestion to ask sub-branch suffix name.
+4. Create branch `push-pr/<suffix>` from current HEAD:
 
    ```bash
-   git checkout -b <branch-name>
+   git checkout -b push-pr/<suffix>
    ```
 
-4. Continue with **push + PR creation** below.
-5. The **target branch** (PR base) defaults to the protected branch the user was on.
+5. Set PR base default to `ORIGINAL_BASE`.
+6. Continue with Stage 1 merge-check.
 
 ### Case B: Currently on a WORK branch with uncommitted changes
 
@@ -40,58 +49,71 @@ Use AskUserQuestion with options:
 
 ### Case C: Currently on a WORK branch, clean or committed
 
-Proceed directly to **Merge Check + Push + PR** below.
+Use AskUserQuestion to ask user intent:
+
+- (a) Run Stage 1 merge-check now
+- (b) Run Stage 2 push+PR directly (only if merge already checked manually)
+- (c) Show manual commands/UI guide only
 
 ---
 
-## Merge Check (Before Push)
+## Stage 1: Merge Check and Review Handoff
 
-Before pushing, perform a **local dry-run merge** to detect conflicts:
+Before pushing, do a local real merge validation in a temporary branch:
 
 ```bash
-# Fetch latest target branch without merging
+# Fetch target branch
 git fetch origin <target-branch>
 
-# Dry run: check for merge conflicts using merge-tree
-git merge-tree $(git merge-base HEAD origin/<target-branch>) HEAD origin/<target-branch>
+# Create temporary check branch from target
+git switch -c push-pr-check/<source-branch>-to-<target-branch> origin/<target-branch>
+
+# Try merge source branch into target snapshot
+git merge --no-ff --no-commit <source-branch>
 ```
 
-- If **no conflicts** detected: proceed to push.
+- If **no conflicts** detected:
+  1. Tell user validation passed.
+  2. Clean temporary check branch (no commit needed).
+  3. Ask user to run `/push-pr` again for Stage 2.
 - If **conflicts detected**:
   1. Inform the user of conflicting files.
-  2. Show the command to open VSCode's merge UI:
+  2. Tell user to open VS Code merge UI from Source Control conflict list.
+  3. Optionally provide terminal command to open diff view:
 
      ```bash
      code --diff <conflicted-file>
      ```
 
-     Or if using Git integration: "Open Source Control panel → Merge Changes"
-  3. Provide the exact terminal commands to resolve manually:
+  4. Provide exact terminal commands for manual resolve:
 
      ```bash
-     git merge origin/<target-branch>
-     # Resolve conflicts in editor, then:
+     # resolve files in VS Code merge editor, then:
      git add <resolved-files>
-     git commit
+     git commit -m "chore: resolve merge conflicts for pr precheck"
      ```
 
-  4. Tell the user: "After resolving conflicts, run `/push-pr` again to continue."
-  5. **Stop here.** Do not push until conflicts are resolved.
+  5. Tell user: "After review/resolve, run `/push-pr` again to continue Stage 2."
+  6. **Stop here.** Do not push yet.
 
 ---
 
-## PR Target Branch Selection
+## Stage 2: Push and Create/Update PR
 
-Use AskUserQuestion to ask:
-"Which branch should this PR target? (default: main)"
+Before running Stage 2, verify with AskUserQuestion: "Have merge review/check been completed?"
 
-- (a) main
-- (b) master
-- (c) Enter custom branch name
+- (a) Yes, continue
+- (b) No, go back to Stage 1
 
----
+If user confirms continue, confirm target branch:
 
-## Push and Create/Update PR
+- If started from protected branch: default target is the original protected branch.
+- Else: AskUserQuestion with options:
+  - main
+  - release/<name>
+  - custom
+
+Then execute:
 
 ```bash
 # Push branch (set upstream if first push)

@@ -2,15 +2,28 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CONFIG_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
-# Workflow guide moved to rules/
-GUIDE_FILE="$PROJECT_DIR/.claude/rules/workflow-guide.md"
+GUIDE_FILE_PRIMARY="$CONFIG_DIR/rules/workflow-guide.md"
+GUIDE_FILE_FALLBACK="$PROJECT_DIR/.claude/rules/workflow-guide.md"
 
-if [ -f "$GUIDE_FILE" ]; then
-  ADDITIONAL_CONTEXT="$(cat "$GUIDE_FILE")"
+if [ -f "$GUIDE_FILE_PRIMARY" ]; then
+  ADDITIONAL_CONTEXT="$(cat "$GUIDE_FILE_PRIMARY")"
+elif [ -f "$GUIDE_FILE_FALLBACK" ]; then
+  ADDITIONAL_CONTEXT="$(cat "$GUIDE_FILE_FALLBACK")"
 else
-  ADDITIONAL_CONTEXT="Workflow guide is missing at .claude/rules/workflow-guide.md. Ask user to restore it before using workflow skills."
+  ADDITIONAL_CONTEXT="Workflow guide is missing at rules/workflow-guide.md. Ask user to restore it before using workflow skills."
 fi
+
+CURRENT_BRANCH="unknown"
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+fi
+
+ADDITIONAL_CONTEXT="$ADDITIONAL_CONTEXT
+
+Session branch snapshot: $CURRENT_BRANCH
+If branch is main or release/*, before any mutating action you must trigger AskUserQuestion to choose branch transition."
 
 # Windows compatibility: test actual execution, not just path existence
 # (Windows has a broken python3.exe stub in WindowsApps)

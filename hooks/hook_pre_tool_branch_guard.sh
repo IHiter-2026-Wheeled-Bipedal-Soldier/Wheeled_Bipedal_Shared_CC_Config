@@ -20,6 +20,7 @@ fi
 
 PAYLOAD="$(cat)"
 TOOL_NAME="$(echo "$PAYLOAD" | "$PYTHON_CMD" -c 'import json,sys; d=json.load(sys.stdin); print(d.get("tool_name", ""))' 2>/dev/null || echo "")"
+TOOL_COMMAND="$(echo "$PAYLOAD" | "$PYTHON_CMD" -c 'import json,sys; d=json.load(sys.stdin); ti=d.get("tool_input", {}); cmd=ti.get("command", "") if isinstance(ti, dict) else (ti if isinstance(ti, str) else ""); print(cmd)' 2>/dev/null || echo "")"
 
 if [ -z "$TOOL_NAME" ]; then
   exit 0
@@ -31,7 +32,7 @@ fi
 
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
 case "$CURRENT_BRANCH" in
-  main|master|v1-stable)
+  main|release/*)
     ;;
   *)
     exit 0
@@ -39,9 +40,23 @@ case "$CURRENT_BRANCH" in
 esac
 
 case "$TOOL_NAME" in
-  Edit|Write|MultiEdit|NotebookEdit|Bash|Agent)
-    echo "Protected branch '$CURRENT_BRANCH': blocked tool '$TOOL_NAME'. Create/switch to a work branch first (git checkout -b work/<name>)." >&2
+  Edit|Write|MultiEdit|NotebookEdit|Agent)
+    echo "Protected branch '$CURRENT_BRANCH': blocked tool '$TOOL_NAME'. Use AskUserQuestion first, then create/switch branch." >&2
     exit 2
+    ;;
+  Bash)
+    case "$TOOL_COMMAND" in
+      git\ branch\ --show-current*|git\ status*|git\ rev-parse*|git\ fetch*)
+        exit 0
+        ;;
+      git\ checkout\ -b\ work/*|git\ checkout\ -b\ release/*|git\ checkout\ -b\ push-pr/*|git\ switch\ -c\ work/*|git\ switch\ -c\ release/*|git\ switch\ -c\ push-pr/*|git\ checkout\ work/*|git\ checkout\ release/*|git\ checkout\ push-pr/*|git\ switch\ work/*|git\ switch\ release/*|git\ switch\ push-pr/*)
+        exit 0
+        ;;
+      *)
+        echo "Protected branch '$CURRENT_BRANCH': blocked Bash command. Allowed now: branch read commands, fetch, and branch transition (work/release/push-pr)." >&2
+        exit 2
+        ;;
+    esac
     ;;
   *)
     exit 0

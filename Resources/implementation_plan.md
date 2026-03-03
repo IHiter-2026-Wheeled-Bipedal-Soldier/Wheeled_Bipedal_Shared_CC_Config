@@ -25,6 +25,7 @@
 **影响的引用路径检查**：
 - `skills/code-review/SKILL.md` 中若引用上述文件，改为 `../../rules/` 相对路径
 - `hooks/hook_*.sh` 若引用 workflow-guide / git-harness-agent-policy，改为 `../rules/` 相对路径
+- `hook_prompt_submit.sh` / `hook_session_start.sh` 需兼容回退路径 `.claude/rules/`
 
 ---
 
@@ -53,26 +54,37 @@
 | `clean-gone` *(已有，保留)* | `/clean-gone` | 清理已删除远端的本地 [gone] 分支 |
 | `merge-work-branch` *(已有，保留)* | `/merge-work-branch` | 引导式合并工作分支，仅给出建议不自动执行 |
 
-**完整协作开发流程**（6 个 skill 覆盖全生命周期）：
+**完整协作开发流程**（6+1 个 skill 覆盖全生命周期）：
 
 ```
 写代码
   └─ /commit           → 智能暂存 + Conventional Commit
-  └─ /push-pr          → 推送 + 创建 PR（交互选目标分支）
+  └─ /push-pr          → 二阶段：第1次 merge-check + 审核交接；第2次 push + 创建/更新 PR
 审核通过后
   └─ /sync-latest      → 拉取主 + 更新子模块（pull + submodule sync）
   └─ /merge-work-branch→ 合并引导（建议命令，用户执行）
 维护清理
   └─ /clean-gone       → 清理 [gone] 分支
+  └─ /git-archive      → release 分支归档 + worktree 存档
   └─ /sync-submodules  → 单独同步子模块（如 .claude/memory 更新后）
 ```
 
 #### [MODIFY] `skills/commit-push-pr/` → 重命名/重写为 `skills/push-pr/`
 
 现有 `commit-push-pr` 职责不清晰（混合了 commit 和 push）。重写为纯 push + PR 技能：
-- 先用 AskUserQuestion 确认目标分支（默认 main）
-- 检测当前分支是否已 push，否则询问是否创建
-- 执行 `git push` + `gh pr create` 或更新已有 PR
+- 强制二阶段：
+  1. 第1次 `/push-pr`：执行本地 merge-check；冲突时转交 VS Code merge UI 并停止
+  2. 第2次 `/push-pr`：用户审核/解决后执行 `git push` + `gh pr create`/更新 PR
+- 受保护分支（`main`、`release/*`）起始时：自动创建 `push-pr/<name>` 子分支，PR 目标默认起始分支
+- 非受保护分支起始时：用 AskUserQuestion 询问用户要“预检/直推/仅给操作指引”
+
+#### [NEW] 受保护分支分支状态注入 + 首轮强制问询
+
+- `UserPromptSubmit` 注入当前分支状态（当前分支名 + protected 标记）
+- 受保护分支命中时，AI 首轮响应必须立刻触发 AskUserQuestion：
+  - 在 `main`：创建 `release/<name>` 或创建 `work/<name>`
+  - 在 `release/*`：创建 `work/<name>` 或保持只读
+- 在问询完成前，不允许执行写入型工具调用
 
 #### [NEW] `skills/sync-submodules/SKILL.md`
 一键同步所有子模块（`.claude/` 和 `.claude/memory/`）到远端最新版本：
@@ -137,3 +149,13 @@ cat .claude/skills/sync-submodules/SKILL.md
 ```
 
 手动验证：在 Claude Code 中输入 `/sync-submodules`，Claude 应触发对应技能并 AskUserQuestion。
+
+新增验证：
+
+```bash
+# 在 main: 首轮必须问“创建 release 分支 or 工作分支”
+# 在 release/*: 首轮必须问“创建工作分支 or 保持只读”
+
+# /push-pr 第1次：只做 merge-check 与冲突审核交接，不 push
+# /push-pr 第2次：push + 创建/更新 PR
+```

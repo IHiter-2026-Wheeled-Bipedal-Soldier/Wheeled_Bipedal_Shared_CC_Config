@@ -17,10 +17,16 @@ Use this repository workflow for embedded chassis development:
 11. To clean up stale [gone] branches: use `/clean-gone`.
 12. To update submodules (.claude/ memory): use `/sync-submodules`.
 
+## Push-PR Execution Notes
+
+- `/push-pr` runs in two stages: first run does local merge-check (with VS Code merge UI guidance if conflicts occur), second run pushes branch and creates/updates PR.
+- If current branch is protected (`main` or `release/*`), `/push-pr` must auto-create `push-pr/<name>` and use the original branch as default PR target.
+- If current branch is not protected, use AskUserQuestion to ask what user wants to do before push/PR actions.
+
 Notes:
 
 - Keep implementation minimal (YAGNI, DRY), avoid scope creep.
 - Follow project naming/style conventions from `rules/naming-rules.md`.
 - Follow coding style from `rules/developing-styles.md`.
 - Build evidence must be explicit before final completion.
-- All AI edits must happen on a work branch, never on protected branches (main/master/v1-stable).
+- All AI edits must happen on a work branch, never on protected branches (main/release/*).
