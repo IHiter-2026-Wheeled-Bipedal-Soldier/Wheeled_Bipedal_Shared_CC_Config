@@ -9,9 +9,9 @@ unset GIT_OBJECT_DIRECTORY
 
 # Windows compatibility: test actual execution, not just path existence
 # (Windows has a broken python3.exe stub in WindowsApps)
-if python3 -c "import sys" >/dev/null 2>&1; then
+if python3 -c "import sys" > /dev/null 2>&1; then
   PYTHON_CMD="python3"
-elif python -c "import sys" >/dev/null 2>&1; then
+elif python -c "import sys" > /dev/null 2>&1; then
   PYTHON_CMD="python"
 else
   echo "Error: Python not found" >&2
@@ -25,19 +25,8 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 if [ -n "${CLAUDE_PROJECT_DIR:-}" ] && [ -d "$CLAUDE_PROJECT_DIR/.claude" ]; then
   PROJECT_DIR="$CLAUDE_PROJECT_DIR"
 fi
-POLICY_FILE="$PROJECT_DIR/.claude/hooks/git-harness-agent-policy.md"
-
-# Set environment variables for auto-commit.py
-export HOOK_TRIGGERED=true
-export HOOK_EVENT_TYPE=prompt_submit
-
-# Execute auto-commit if we're in a git repository
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  AUTO_COMMIT_SCRIPT="$SCRIPT_DIR/auto-commit.py"
-  if [ -f "$AUTO_COMMIT_SCRIPT" ]; then
-    "$PYTHON_CMD" "$AUTO_COMMIT_SCRIPT" 2>/dev/null || true
-  fi
-fi
+# Policy file moved to rules/
+POLICY_FILE="$PROJECT_DIR/.claude/rules/git-harness-agent-policy.md"
 
 if [ -f "$POLICY_FILE" ]; then
   ADDITIONAL_CONTEXT="$(cat "$POLICY_FILE")"

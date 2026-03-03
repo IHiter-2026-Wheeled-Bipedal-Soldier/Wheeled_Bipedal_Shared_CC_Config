@@ -14,6 +14,7 @@ Source: `ReadMe/ReadMe.txt`
   - `__FunctionName`: tiny helper or predicate helper
 
 Examples:
+
 - `GFCH_SafeMode`
 - `GSTCH_Data`
 

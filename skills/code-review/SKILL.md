@@ -50,7 +50,7 @@ Ask user using AskUserQuestion:
 
 ## References
 
-- `naming-rules.md`
-- `developing-styles.md`
+- `../../rules/naming-rules.md`
+- `../../rules/developing-styles.md`
 - `spec-reviewer-prompt.md`
 - `quality-reviewer-prompt.md`
