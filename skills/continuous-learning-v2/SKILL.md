@@ -26,7 +26,7 @@ An advanced learning system that turns your Claude Code sessions into reusable k
 
 | Feature | v2.0 | v2.1 |
 |---------|------|------|
-| Storage | Global (~/.claude/homunculus/) | Project-scoped (projects/<hash>/) |
+| Storage | Global (~/.claude/homunculus/) | Split storage: `.claude/GlobalMemory` + `<project>/ProjectMemory/<hash>/` |
 | Scope | All instincts apply everywhere | Project-scoped + global |
 | Detection | None | git remote URL / repo path |
 | Promotion | N/A | Project → global when seen in 2+ projects |
@@ -86,7 +86,7 @@ Session Activity (in a git repo)
       | + detect project context (git remote / repo path)
       v
 +---------------------------------------------+
-|  projects/<project-hash>/observations.jsonl  |
+|  <project>/ProjectMemory/<project-hash>/observations.jsonl  |
 |   (prompts, tool calls, outcomes, project)   |
 +---------------------------------------------+
       |
@@ -103,7 +103,7 @@ Session Activity (in a git repo)
       | Creates/updates
       v
 +---------------------------------------------+
-|  projects/<project-hash>/instincts/personal/ |
+|  <project>/ProjectMemory/<project-hash>/instincts/personal/ |
 |   * prefer-functional.yaml (0.7) [project]   |
 |   * use-react-hooks.yaml (0.9) [project]     |
 +---------------------------------------------+
@@ -115,7 +115,7 @@ Session Activity (in a git repo)
       | /evolve clusters + /promote
       v
 +---------------------------------------------+
-|  projects/<hash>/evolved/ (project-scoped)   |
+|  <project>/ProjectMemory/<hash>/evolved/ (project-scoped)   |
 |  evolved/ (global)                           |
 |   * commands/new-feature.md                  |
 |   * skills/testing-workflow.md               |
@@ -132,7 +132,7 @@ The system automatically detects your current project:
 3. **`git rev-parse --show-toplevel`** -- fallback using repo path (machine-specific)
 4. **Global fallback** -- if no project is detected, instincts go to global scope
 
-Each project gets a 12-character hash ID (e.g., `a1b2c3d4e5f6`). A registry file at `~/.claude/homunculus/projects.json` maps IDs to human-readable names.
+Each project gets a 12-character hash ID (e.g., `a1b2c3d4e5f6`). A registry file at `.claude/GlobalMemory/projects.json` maps IDs to human-readable names.
 
 ## Quick Start
 
@@ -149,14 +149,14 @@ Add to your `~/.claude/settings.json`.
       "matcher": "*",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/skills/continuous-learning-v2/hooks/observe.sh"
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/memory-observe.sh"
       }]
     }],
     "PostToolUse": [{
       "matcher": "*",
       "hooks": [{
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/skills/continuous-learning-v2/hooks/observe.sh"
+        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/memory-observe.sh"
       }]
     }]
   }
@@ -172,14 +172,14 @@ Add to your `~/.claude/settings.json`.
       "matcher": "*",
       "hooks": [{
         "type": "command",
-        "command": "~/.claude/skills/continuous-learning-v2/hooks/observe.sh"
+        "command": "~/.claude/hooks/memory-observe.sh"
       }]
     }],
     "PostToolUse": [{
       "matcher": "*",
       "hooks": [{
         "type": "command",
-        "command": "~/.claude/skills/continuous-learning-v2/hooks/observe.sh"
+        "command": "~/.claude/hooks/memory-observe.sh"
       }]
     }]
   }
@@ -192,9 +192,9 @@ The system creates directories automatically on first use, but you can also crea
 
 ```bash
 # Global directories
-mkdir -p ~/.claude/homunculus/{instincts/{personal,inherited},evolved/{agents,skills,commands},projects}
+mkdir -p .claude/GlobalMemory/{instincts/{personal,inherited},evolved/{agents,skills,commands}}
 
-# Project directories are auto-created when the hook first runs in a git repo
+# Project directories are auto-created in <project>/ProjectMemory/<project-hash>/ when the hook first runs
 ```
 
 ### 3. Use the Instinct Commands
@@ -245,7 +245,7 @@ Other behavior (observation capture, instinct thresholds, project scoping, promo
 ## File Structure
 
 ```
-~/.claude/homunculus/
+.claude/GlobalMemory/
 +-- identity.json           # Your profile, technical level
 +-- projects.json           # Registry: project hash -> name/path/remote
 +-- observations.jsonl      # Global observations (fallback)
@@ -256,19 +256,20 @@ Other behavior (observation capture, instinct thresholds, project scoping, promo
 |   +-- agents/             # Global generated agents
 |   +-- skills/             # Global generated skills
 |   +-- commands/           # Global generated commands
-+-- projects/
-    +-- a1b2c3d4e5f6/       # Project hash (from git remote URL)
-    |   +-- observations.jsonl
-    |   +-- observations.archive/
-    |   +-- instincts/
-    |   |   +-- personal/   # Project-specific auto-learned
-    |   |   +-- inherited/  # Project-specific imported
-    |   +-- evolved/
-    |       +-- skills/
-    |       +-- commands/
-    |       +-- agents/
-    +-- f6e5d4c3b2a1/       # Another project
-        +-- ...
+
+<project-root>/ProjectMemory/
++-- a1b2c3d4e5f6/       # Project hash (from git remote URL)
+|   +-- observations.jsonl
+|   +-- observations.archive/
+|   +-- instincts/
+|   |   +-- personal/   # Project-specific auto-learned
+|   |   +-- inherited/  # Project-specific imported
+|   +-- evolved/
+|       +-- skills/
+|       +-- commands/
+|       +-- agents/
+\-- f6e5d4c3b2a1/       # Another project
+  +-- ...
 ```
 
 ## Scope Decision Guide
@@ -340,7 +341,7 @@ Hooks fire **100% of the time**, deterministically. This means:
 ## Backward Compatibility
 
 v2.1 is fully compatible with v2.0 and v1:
-- Existing global instincts in `~/.claude/homunculus/instincts/` still work as global instincts
+- Existing global instincts in `.claude/GlobalMemory/instincts/` work as global instincts
 - Existing `~/.claude/skills/learned/` skills from v1 still work
 - Stop hook still runs (but now also feeds into v2)
 - Gradual migration: run both in parallel

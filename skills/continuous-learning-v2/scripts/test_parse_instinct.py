@@ -83,46 +83,45 @@ Validate all user input.
 @pytest.fixture
 def project_tree(tmp_path):
     """Create a realistic project directory tree for testing."""
-    homunculus = tmp_path / ".claude" / "homunculus"
-    projects_dir = homunculus / "projects"
-    global_personal = homunculus / "instincts" / "personal"
-    global_inherited = homunculus / "instincts" / "inherited"
-    global_evolved = homunculus / "evolved"
+    claude_root = tmp_path / ".claude"
+    global_memory = claude_root / "GlobalMemory"
+    global_personal = global_memory / "instincts" / "personal"
+    global_inherited = global_memory / "instincts" / "inherited"
+    global_evolved = global_memory / "evolved"
 
     for d in [
         global_personal, global_inherited,
         global_evolved / "skills", global_evolved / "commands", global_evolved / "agents",
-        projects_dir,
     ]:
         d.mkdir(parents=True, exist_ok=True)
 
     return {
         "root": tmp_path,
-        "homunculus": homunculus,
-        "projects_dir": projects_dir,
+        "claude_root": claude_root,
+        "global_memory": global_memory,
         "global_personal": global_personal,
         "global_inherited": global_inherited,
         "global_evolved": global_evolved,
-        "registry_file": homunculus / "projects.json",
+        "registry_file": global_memory / "projects.json",
     }
 
 
 @pytest.fixture
 def patch_globals(project_tree, monkeypatch):
     """Patch module-level globals to use tmp_path-based directories."""
-    monkeypatch.setattr(_mod, "HOMUNCULUS_DIR", project_tree["homunculus"])
-    monkeypatch.setattr(_mod, "PROJECTS_DIR", project_tree["projects_dir"])
+    monkeypatch.setattr(_mod, "CLAUDE_ROOT", project_tree["claude_root"])
+    monkeypatch.setattr(_mod, "GLOBAL_MEMORY_DIR", project_tree["global_memory"])
     monkeypatch.setattr(_mod, "REGISTRY_FILE", project_tree["registry_file"])
     monkeypatch.setattr(_mod, "GLOBAL_PERSONAL_DIR", project_tree["global_personal"])
     monkeypatch.setattr(_mod, "GLOBAL_INHERITED_DIR", project_tree["global_inherited"])
     monkeypatch.setattr(_mod, "GLOBAL_EVOLVED_DIR", project_tree["global_evolved"])
-    monkeypatch.setattr(_mod, "GLOBAL_OBSERVATIONS_FILE", project_tree["homunculus"] / "observations.jsonl")
+    monkeypatch.setattr(_mod, "GLOBAL_OBSERVATIONS_FILE", project_tree["global_memory"] / "observations.jsonl")
     return project_tree
 
 
 def _make_project(tree, pid="abc123", pname="test-project"):
     """Create project directory structure and return a project dict."""
-    project_dir = tree["projects_dir"] / pid
+    project_dir = tree["root"] / "fake-repo" / "ProjectMemory" / pid
     personal_dir = project_dir / "instincts" / "personal"
     inherited_dir = project_dir / "instincts" / "inherited"
     for d in [personal_dir, inherited_dir,
@@ -533,11 +532,11 @@ def test_load_all_global_only(patch_globals):
         "id": "global",
         "name": "global",
         "root": "",
-        "project_dir": tree["homunculus"],
+        "project_dir": tree["global_memory"],
         "instincts_personal": tree["global_personal"],
         "instincts_inherited": tree["global_inherited"],
         "evolved_dir": tree["global_evolved"],
-        "observations_file": tree["homunculus"] / "observations.jsonl",
+        "observations_file": tree["global_memory"] / "observations.jsonl",
     }
 
     result = load_all_instincts(global_project)
@@ -568,11 +567,11 @@ def test_load_project_only_global_fallback_loads_global(patch_globals):
         "id": "global",
         "name": "global",
         "root": "",
-        "project_dir": tree["homunculus"],
+        "project_dir": tree["global_memory"],
         "instincts_personal": tree["global_personal"],
         "instincts_inherited": tree["global_inherited"],
         "evolved_dir": tree["global_evolved"],
-        "observations_file": tree["homunculus"] / "observations.jsonl",
+        "observations_file": tree["global_memory"] / "observations.jsonl",
     }
 
     result = load_project_only_instincts(global_project)
@@ -663,7 +662,7 @@ def test_cmd_projects_with_registry(patch_globals, capsys):
     registry = {
         pid: {
             "name": "my-app",
-            "root": "/home/user/my-app",
+            "root": str(Path(project["root"])),
             "remote": "https://github.com/user/my-app.git",
             "last_seen": "2025-01-15T12:00:00Z",
         }
@@ -784,8 +783,8 @@ Always review for injection.
 
     # Write registry
     registry = {
-        "proj1": {"name": "project-one", "root": "/a", "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
-        "proj2": {"name": "project-two", "root": "/b", "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
+        "proj1": {"name": "project-one", "root": str(Path(p1["root"])), "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
+        "proj2": {"name": "project-two", "root": str(Path(p2["root"])), "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
     }
     tree["registry_file"].write_text(json.dumps(registry))
 
@@ -823,8 +822,8 @@ Use descriptive variable names.
     (p2["instincts_personal"] / "uni.yaml").write_text(high_conf_yaml)
 
     registry = {
-        "proj1": {"name": "project-one", "root": "/a", "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
-        "proj2": {"name": "project-two", "root": "/b", "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
+        "proj1": {"name": "project-one", "root": str(Path(p1["root"])), "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
+        "proj2": {"name": "project-two", "root": str(Path(p2["root"])), "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
     }
     tree["registry_file"].write_text(json.dumps(registry))
 
@@ -860,8 +859,8 @@ Invalid id should be skipped.
     (p2["instincts_personal"] / "bad.yaml").write_text(bad_id_yaml)
 
     registry = {
-        "proj1": {"name": "project-one", "root": "/a", "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
-        "proj2": {"name": "project-two", "root": "/b", "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
+        "proj1": {"name": "project-one", "root": str(Path(p1["root"])), "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
+        "proj2": {"name": "project-two", "root": str(Path(p2["root"])), "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
     }
     tree["registry_file"].write_text(json.dumps(registry))
 
@@ -889,7 +888,7 @@ def test_find_cross_project_single_project(patch_globals):
     p1 = _make_project(tree, pid="proj1", pname="project-one")
     (p1["instincts_personal"] / "inst.yaml").write_text(SAMPLE_INSTINCT_YAML)
 
-    registry = {"proj1": {"name": "project-one", "root": "/a", "remote": "", "last_seen": "2025-01-01T00:00:00Z"}}
+    registry = {"proj1": {"name": "project-one", "root": str(Path(p1["root"])), "remote": "", "last_seen": "2025-01-01T00:00:00Z"}}
     tree["registry_file"].write_text(json.dumps(registry))
 
     result = _find_cross_project_instincts()
@@ -906,8 +905,8 @@ def test_find_cross_project_shared_instinct(patch_globals):
     (p2["instincts_personal"] / "shared.yaml").write_text(SAMPLE_INSTINCT_YAML)
 
     registry = {
-        "proj1": {"name": "project-one", "root": "/a", "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
-        "proj2": {"name": "project-two", "root": "/b", "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
+        "proj1": {"name": "project-one", "root": str(Path(p1["root"])), "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
+        "proj2": {"name": "project-two", "root": str(Path(p2["root"])), "remote": "", "last_seen": "2025-01-01T00:00:00Z"},
     }
     tree["registry_file"].write_text(json.dumps(registry))
 

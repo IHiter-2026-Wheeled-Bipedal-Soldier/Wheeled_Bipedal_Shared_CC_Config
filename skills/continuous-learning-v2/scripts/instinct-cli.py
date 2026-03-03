@@ -31,16 +31,22 @@ from typing import Optional
 # Configuration
 # ─────────────────────────────────────────────
 
-HOMUNCULUS_DIR = Path.home() / ".claude" / "homunculus"
-PROJECTS_DIR = HOMUNCULUS_DIR / "projects"
-REGISTRY_FILE = HOMUNCULUS_DIR / "projects.json"
+_SCRIPT_PATH = Path(__file__).resolve()
+_CLAUDE_ROOT_FROM_SCRIPT = _SCRIPT_PATH.parents[3]
+if _CLAUDE_ROOT_FROM_SCRIPT.name == ".claude":
+    CLAUDE_ROOT = _CLAUDE_ROOT_FROM_SCRIPT
+else:
+    CLAUDE_ROOT = Path.home() / ".claude"
+
+GLOBAL_MEMORY_DIR = CLAUDE_ROOT / "GlobalMemory"
+REGISTRY_FILE = GLOBAL_MEMORY_DIR / "projects.json"
 
 # Global (non-project-scoped) paths
-GLOBAL_INSTINCTS_DIR = HOMUNCULUS_DIR / "instincts"
+GLOBAL_INSTINCTS_DIR = GLOBAL_MEMORY_DIR / "instincts"
 GLOBAL_PERSONAL_DIR = GLOBAL_INSTINCTS_DIR / "personal"
 GLOBAL_INHERITED_DIR = GLOBAL_INSTINCTS_DIR / "inherited"
-GLOBAL_EVOLVED_DIR = HOMUNCULUS_DIR / "evolved"
-GLOBAL_OBSERVATIONS_FILE = HOMUNCULUS_DIR / "observations.jsonl"
+GLOBAL_EVOLVED_DIR = GLOBAL_MEMORY_DIR / "evolved"
+GLOBAL_OBSERVATIONS_FILE = GLOBAL_MEMORY_DIR / "observations.jsonl"
 
 # Thresholds for auto-promotion
 PROMOTE_CONFIDENCE_THRESHOLD = 0.8
@@ -50,8 +56,7 @@ ALLOWED_INSTINCT_EXTENSIONS = (".yaml", ".yml", ".md")
 # Ensure global directories exist (deferred to avoid side effects at import time)
 def _ensure_global_dirs():
     for d in [GLOBAL_PERSONAL_DIR, GLOBAL_INHERITED_DIR,
-              GLOBAL_EVOLVED_DIR / "skills", GLOBAL_EVOLVED_DIR / "commands", GLOBAL_EVOLVED_DIR / "agents",
-              PROJECTS_DIR]:
+              GLOBAL_EVOLVED_DIR / "skills", GLOBAL_EVOLVED_DIR / "commands", GLOBAL_EVOLVED_DIR / "agents"]:
         d.mkdir(parents=True, exist_ok=True)
 
 
@@ -64,8 +69,6 @@ def _validate_file_path(path_str: str, must_exist: bool = False) -> Path:
 
     Raises ValueError if the path is invalid or suspicious.
     """
-    path = Path(path_str).expanduser().resolve()
-
     # Block paths that escape into system directories
     # We block specific system paths but allow temp dirs (/var/folders on macOS)
     blocked_prefixes = [
@@ -75,6 +78,13 @@ def _validate_file_path(path_str: str, must_exist: bool = False) -> Path:
         "/private/etc",
         "/private/var/log", "/private/var/run", "/private/var/db",
     ]
+
+    raw_s = path_str.replace("\\", "/")
+    for prefix in blocked_prefixes:
+        if raw_s.startswith(prefix + "/") or raw_s == prefix:
+            raise ValueError(f"Path '{path_str}' targets a system directory")
+
+    path = Path(path_str).expanduser().resolve()
     path_s = str(path)
     for prefix in blocked_prefixes:
         if path_s.startswith(prefix + "/") or path_s == prefix:
@@ -130,7 +140,7 @@ def detect_project() -> dict:
             "id": "global",
             "name": "global",
             "root": "",
-            "project_dir": HOMUNCULUS_DIR,
+            "project_dir": GLOBAL_MEMORY_DIR,
             "instincts_personal": GLOBAL_PERSONAL_DIR,
             "instincts_inherited": GLOBAL_INHERITED_DIR,
             "evolved_dir": GLOBAL_EVOLVED_DIR,
@@ -154,7 +164,7 @@ def detect_project() -> dict:
     hash_source = remote_url if remote_url else project_root
     project_id = hashlib.sha256(hash_source.encode()).hexdigest()[:12]
 
-    project_dir = PROJECTS_DIR / project_id
+    project_dir = Path(project_root) / "ProjectMemory" / project_id
 
     # Ensure project directory structure
     for d in [
@@ -768,7 +778,10 @@ def _find_cross_project_instincts() -> dict:
     cross_project = defaultdict(list)
 
     for pid, pinfo in registry.items():
-        project_dir = PROJECTS_DIR / pid
+        root = pinfo.get('root', '')
+        if not root:
+            continue
+        project_dir = Path(root) / "ProjectMemory" / pid
         personal_dir = project_dir / "instincts" / "personal"
         inherited_dir = project_dir / "instincts" / "inherited"
 
@@ -973,7 +986,8 @@ def cmd_projects(args) -> int:
     print(f"{'='*60}\n")
 
     for pid, pinfo in sorted(registry.items(), key=lambda x: x[1].get('last_seen', ''), reverse=True):
-        project_dir = PROJECTS_DIR / pid
+        root = pinfo.get('root', '')
+        project_dir = Path(root) / "ProjectMemory" / pid if root else Path("__missing_project_root__")
         personal_dir = project_dir / "instincts" / "personal"
         inherited_dir = project_dir / "instincts" / "inherited"
 
