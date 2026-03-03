@@ -71,9 +71,9 @@ graph TB
 
 | 删除目标 | 原因 |
 |----------|------|
-| [session-git-map.json](file:///e:/CODE_project/BalanceSoldier/ChassisControl/CHASSIS_Patience/.claude/session-git-map.json) + session-branch 映射功能 | 不保留此功能 |
+| `session-git-map.json` + session-branch 映射功能 | 不保留此功能 |
 | `.claude/agent-memory/code-reviewer/` | 旧记忆目录，不再保留 |
-| [hook_pre_tool.sh](file:///e:/CODE_project/BalanceSoldier/ChassisControl/CHASSIS_Patience/.claude/hooks/hook_pre_tool.sh) | checkpoint 已在 prompt_submit 和 stop 保证 |
+| `hook_pre_tool.sh` | checkpoint 已在 prompt_submit 和 stop 保证 |
 | `fork-explore` skill | 暂不使用 |
 | `writing-skills` skill | 暂不添加 |
 | `dispatching-parallel-agents` skill | 整合到 subagent-driven-dev |
@@ -101,7 +101,7 @@ graph TB
 
 > 官方文档确认：Stop payload 含 `last_assistant_message`，TaskCompleted 含 `task_subject`，UserPromptSubmit 含 `prompt`，SessionStart 支持 `additionalContext` 上下文注入。
 
-### 3.1 [hook_session_start.sh](file:///e:/CODE_project/BalanceSoldier/ChassisControl/CHASSIS_Patience/.claude/hooks/hook_session_start.sh) — 上下文注入 + 分支快照
+### 3.1 `hook_session_start.sh` — 上下文注入 + 分支快照
 
 - **新功能**: 借鉴 Superpowers session-start 模式，通过 `additionalContext` 注入工作流说明
 - **注入来源**: 优先读取 `rules/workflow-guide.md`，兼容回退 `.claude/rules/workflow-guide.md`
@@ -118,7 +118,7 @@ graph TB
   }
   ```
 
-### 3.2 [hook_prompt_submit.sh](file:///e:/CODE_project/BalanceSoldier/ChassisControl/CHASSIS_Patience/.claude/hooks/hook_prompt_submit.sh) — 签名 + 强制分支策略注入
+### 3.2 `hook_prompt_submit.sh` — 签名 + 强制分支策略注入
 
 **Checkpoint 功能**:
 
@@ -192,9 +192,25 @@ graph TB
 }
 ```
 
-> **新增文件**: `.claude/hooks/workflow-guide.md` — 推荐工作流说明文档，由 hook_session_start.sh 读取并注入
+> **新增文件**: `.claude/rules/workflow-guide.md` — 推荐工作流说明文档，由 hook_session_start.sh 读取并注入
 >
-> `.claude/hooks/git-harness-agent-policy.md` — 强制git管控说明文档，由 hook_prompt_submit.sh 读取并注入
+> `.claude/rules/git-harness-agent-policy.md` — 强制git管控说明文档，由 hook_prompt_submit.sh 读取并注入
+
+### 3.7 continuous-learning-v2 hooks（v2.1 实现态）
+
+- **`memory-observe.sh`（已落地）**:
+  - 绑定于 `PreToolUse` / `PostToolUse`，分别写入 `tool_start` / `tool_complete` 事件。
+  - 从 hook payload 提取 `cwd`，优先作为 `CLAUDE_PROJECT_DIR`，保证在 `.claude` 子模块内运行时仍能识别宿主项目。
+  - 观测数据写入 `<project_root>/ProjectMemory/<project-hash>/observations.jsonl`；无项目上下文时回落到 `.claude/GlobalMemory`。
+  - 单文件达到阈值（10MB）自动归档到 `observations.archive/`。
+- **`memory-detect-project.sh`（已落地）**:
+  - 项目识别顺序：`CLAUDE_PROJECT_DIR` → `git rev-parse --show-toplevel` → global fallback。
+  - 使用 `git remote get-url origin`（或路径回退）计算 12 位项目哈希。
+  - 自动维护 `.claude/GlobalMemory/projects.json`（项目 registry，含 `name/root/remote/last_seen`）。
+- **Windows 兼容策略（已落地）**:
+  - 所有 memory 相关脚本统一采用“实际执行检测”选择 Python：优先 `python3 -c` 可执行，再回退 `python -c`。
+
+> 说明：`workflow-guide.md` 与 `git-harness-agent-policy.md` 的实现位置为 `.claude/rules/`，并由 hooks 读取注入。
 
 ---
 
@@ -319,7 +335,7 @@ graph TB
 - **不自动连接** merge-work-branch，用户自主激发
 - **独立可调用**: 用户可直接使用（需有 plan）
 - **下一步建议**: 全部完成后建议上车测试 → `/merge-work-branch`
-- 含 [implementer-prompt.md](file:///e:/CODE_project/BalanceSoldier/ChassisControl/CHASSIS_Patience/claude%20build%20resources/superpowers%204.3.1/skills/subagent-driven-development/implementer-prompt.md) 模板
+- 含 `skills/subagent-driven-dev/implementer-prompt.md` 模板
 - **子智能体开启全部可用能力**: implementer subagent 需要在 SKILL.md 中配置开启所有工具权限（`allowed_tools: all`），使其能访问所有文件、执行命令、读写代码
 
 #### `quick-executing-dev`（重命名自 `executing-plans`）
@@ -393,7 +409,18 @@ graph TB
 
 ### 4.5 学习
 
-#### `continuous-learning-v2`（保留现有，与新 hooks 解耦运行）
+#### `continuous-learning-v2`（保留并升级到 v2.1）
+
+- **解耦状态（已完成）**:
+  - 活跃 hook/agent 入口迁移到 `.claude/hooks/` 与 `.claude/agents/`。
+- **存储架构（已完成）**:
+  - Global：`.claude/GlobalMemory/`
+  - Project：`<project_root>/ProjectMemory/<project-hash>/`
+  - 默认作用域为 `project`，`global` 仅用于跨项目通用模式。
+- **命令能力（v2.1 已对齐）**:
+  - `/instinct-status`、`/evolve`、`/instinct-export`、`/instinct-import`
+  - `/promote`（项目记忆提升为全局）
+  - `/projects`（查看跨项目 registry 与统计）
 
 ---
 
@@ -558,6 +585,15 @@ sequenceDiagram
 .claude/
 ├── settings.json              # 权限 + hooks 事件绑定（含 continuous-learning-v2 hooks）
 ├── settings.local.json        # 本地权限
+├── GlobalMemory/              # [已落地] 全局记忆根目录
+│   ├── projects.json           # project-hash registry
+│   ├── instincts/
+│   │   ├── personal/
+│   │   └── inherited/
+│   └── evolved/
+│       ├── skills/
+│       ├── commands/
+│       └── agents/
 ├── plan-context.json          # [新建] 当前激活计划路径
 ├── plan-git-SHA.json          # [新建] plan/task git SHA 追踪
 ├── hooks/
@@ -566,11 +602,17 @@ sequenceDiagram
 │   ├── hook_stop.sh           # [新建] CPED 签名
 │   ├── hook_task_complete.sh  # [新建] TASK 签名
 │   ├── hook_pre_tool_branch_guard.sh # [新建] 受保护分支写操作阻断
+│   ├── memory-observe.sh      # [新建] v2.1 观测入口（pre/post）
+│   └── memory-detect-project.sh # [新建] v2.1 项目识别与registry更新
+├── rules/
 │   ├── workflow-guide.md      # [新建] 推荐工作流说明（英文）
 │   └── git-harness-agent-policy.md  # [新建] 分支保护策略（英文，强制）
 ├── agents/
 │   ├── spec-reviewer.md       # [新建] 规范合规审查（英文）
-│   └── quality-reviewer.md    # [新建] 代码质量审查（英文）
+│   ├── quality-reviewer.md    # [新建] 代码质量审查（英文）
+│   ├── memory-observer.md     # [新建] v2.1 记忆观察 agent
+│   ├── start-memory-observer.sh # [新建] 启停脚本
+│   └── memory-detect-project.sh # [新建] 供 agent 复用的项目识别脚本
 ├── skills/
 │   ├── brainstorming/SKILL.md           # [新建]（英文）
 │   ├── create-todolist/SKILL.md         # [新建]（英文）
@@ -595,6 +637,19 @@ sequenceDiagram
 │   ├── name-symbol/                     # [保留]
 │   └── continuous-learning-v2/          # [保留]
 ├── worktrees/
+
+<project-root>/
+└── ProjectMemory/
+  └── <project-hash>/
+    ├── observations.jsonl
+    ├── observations.archive/
+    ├── instincts/
+    │   ├── personal/
+    │   └── inherited/
+    └── evolved/
+      ├── skills/
+      ├── commands/
+      └── agents/
 ```
 
 **删除项**: `hook_pre_tool.sh`, `session-git-map.json`, `agent-memory/code-reviewer/`, `fork-explore/`, `agents/`(旧空目录)
