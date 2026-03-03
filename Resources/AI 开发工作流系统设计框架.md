@@ -1,4 +1,4 @@
-# AI 开发工作流系统 — 设计框架 v6
+# AI 开发工作流系统 — 设计框架 v7
 
 > 基于 Superpowers 4.3.1 大修大改，融合自定义分支管理方案。
 >
@@ -72,6 +72,7 @@ graph TB
 | 删除目标 | 原因 |
 |----------|------|
 | [session-git-map.json](file:///e:/CODE_project/BalanceSoldier/ChassisControl/CHASSIS_Patience/.claude/session-git-map.json) + session-branch 映射功能 | 不保留此功能 |
+| `.claude/agent-memory/code-reviewer/` | 旧记忆目录，不再保留 |
 | [hook_pre_tool.sh](file:///e:/CODE_project/BalanceSoldier/ChassisControl/CHASSIS_Patience/.claude/hooks/hook_pre_tool.sh) | checkpoint 已在 prompt_submit 和 stop 保证 |
 | `fork-explore` skill | 暂不使用 |
 | `writing-skills` skill | 暂不添加 |
@@ -100,13 +101,12 @@ graph TB
 
 > 官方文档确认：Stop payload 含 `last_assistant_message`，TaskCompleted 含 `task_subject`，UserPromptSubmit 含 `prompt`，SessionStart 支持 `additionalContext` 上下文注入。
 
-### 3.1 [hook_session_start.sh](file:///e:/CODE_project/BalanceSoldier/ChassisControl/CHASSIS_Patience/.claude/hooks/hook_session_start.sh) — 重写为上下文注入
+### 3.1 [hook_session_start.sh](file:///e:/CODE_project/BalanceSoldier/ChassisControl/CHASSIS_Patience/.claude/hooks/hook_session_start.sh) — 上下文注入 + 分支快照
 
-- **删除**: 现有的保护分支检查 + session-branch 映射逻辑
-- **新功能**: 借鉴 Superpowers [session-start](file:///e:/CODE_project/BalanceSoldier/ChassisControl/CHASSIS_Patience/claude%20build%20resources/superpowers%204.3.1/hooks/session-start) hook 模式，通过 `additionalContext` 注入工作流使用说明
-- **注入来源**: 读取 `.claude/hooks/workflow-guide.md` 文件内容，将其注入上下文
-- **workflow-guide.md**: 单独的 md 文件，描述当前这个文档的工作流的使用方式，方便独立维护和修改
-- 注入内容让 AI 了解工作流逻辑，但**不强制执行**
+- **新功能**: 借鉴 Superpowers session-start 模式，通过 `additionalContext` 注入工作流说明
+- **注入来源**: 优先读取 `rules/workflow-guide.md`，兼容回退 `.claude/rules/workflow-guide.md`
+- **分支快照**: SessionStart 注入当前分支名，提示 AI 在 `main`/`release/*` 上先执行 AskUserQuestion 再进行变更类操作
+- 注入内容用于“开场即知当前分支状态”，并和 UserPromptSubmit 的强制策略配套
 - **输出格式**:
 
   ```json
@@ -118,7 +118,7 @@ graph TB
   }
   ```
 
-### 3.2 [hook_prompt_submit.sh](file:///e:/CODE_project/BalanceSoldier/ChassisControl/CHASSIS_Patience/.claude/hooks/hook_prompt_submit.sh) — 签名 + 上下文注入
+### 3.2 [hook_prompt_submit.sh](file:///e:/CODE_project/BalanceSoldier/ChassisControl/CHASSIS_Patience/.claude/hooks/hook_prompt_submit.sh) — 签名 + 强制分支策略注入
 
 **Checkpoint 功能**:
 
@@ -129,14 +129,15 @@ graph TB
 
 **上下文注入功能（强制执行）**:
 
-- 读取 `.claude/hooks/git-harness-agent-policy.md` 文件内容，通过 `additionalContext` 注入
-- 内容来源: 基于 `提升AI编程可控性方案.md` 中的分支管理规则
-- 注入的策略内容为**英文**，包括:
-  - 保护分支检测 + 只读模式提示
-  - 工作分支创建引导（`git checkout -b work/<name>`）
-  - 禁止 `git worktree` 的硬性约束
-- **git-harness-agent-policy.md**: 独立文件，存放在 hooks 目录下，方便修改
-- 此注入为**强制执行**（非建议），AI 必须遵守分支保护策略
+- 读取 `rules/git-harness-agent-policy.md`（兼容回退 `.claude/rules/git-harness-agent-policy.md`）
+- 运行时拼接“当前分支状态”并注入 `additionalContext`，内容包括：
+  - Current branch（实时值）
+  - 是否命中受保护分支（`main`/`release/*`）
+  - 命中时**首轮响应必须调用 AskUserQuestion**
+    - `main`: 选“创建 release 分支”或“创建工作分支”
+    - `release/*`: 选“创建工作分支”或“保持只读”
+  - `/push-pr` 在受保护分支时必须自动创建 `push-pr/<name>`，且 PR 目标分支默认原受保护分支
+- 此注入为**强制执行**，AI 必须先问后做
 
 ### 3.3 `hook_stop.sh` — 新建
 
@@ -154,12 +155,16 @@ graph TB
 - 同时更新该 plan 的 `head_plan_sha` 为最新提交。plan的‘status’在当前plan的todolist的最后一个任务处理完成（也就是其status变成completed时）自动变成completed。
 
 
-### 3.5 `hook_pre_tool_branch_guard.sh` — 新增受保护分支强制阻断
+### 3.5 `hook_pre_tool_branch_guard.sh` — 受保护分支强制阻断 + 分支过渡放行
 
 - **触发事件**: `PreToolUse`
-- **目标**: 在受保护分支（`main`/`master`/`v1-stable`）上阻断会写入或高风险的工具调用，避免误修改基线分支
-- **阻断工具集合**: `Bash`、`Edit`、`Write`、`MultiEdit`、`NotebookEdit`、`Agent`
-- **行为**: 命中条件时返回非零退出并输出阻断提示；非受保护分支或非阻断工具直接放行
+- **目标**: 在受保护分支（`main`/`release/*`）上阻断写入型工具调用，同时允许最小分支过渡命令
+- **阻断工具集合**: `Edit`、`Write`、`MultiEdit`、`NotebookEdit`、`Agent`（受保护分支下一律阻断）
+- **Bash 规则**:
+  - 放行只读/状态查询命令（如 `git status`、`git branch --show-current`、`git rev-parse`、`git fetch`）
+  - 放行分支切换/创建命令（`work/*`、`release/*`、`push-pr/*`）
+  - 其余 Bash 命令在受保护分支阻断
+- **行为**: 既避免直接停机，又保证“先问分支去向，再进入可写分支”
 - **定位**: `.claude/hooks/hook_pre_tool_branch_guard.sh`
 
 ### 3.6 settings.json hooks 配置
@@ -179,10 +184,10 @@ graph TB
       { "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Agent",
         "hooks": [{ "type": "command", "command": ".claude/hooks/hook_pre_tool_branch_guard.sh" }] },
       { "matcher": "*",
-        "hooks": [{ "type": "command", "command": ".claude/skills/continuous-learning-v2/hooks/observe.sh pre", "async": true }] }
+        "hooks": [{ "type": "command", "command": ".claude/hooks/memory-observe.sh pre", "async": true }] }
     ],
     "PostToolUse": [{ "matcher": "*",
-      "hooks": [{ "type": "command", "command": ".claude/skills/continuous-learning-v2/hooks/observe.sh post", "async": true }] }]
+      "hooks": [{ "type": "command", "command": ".claude/hooks/memory-observe.sh post", "async": true }] }]
   }
 }
 ```
@@ -367,6 +372,13 @@ graph TB
 
 #### `goto`（保留现有）
 
+#### `push-pr`（二阶段强制协议）
+
+- **第一阶段（merge-check）**: 在本地目标分支快照上做合并预检；若冲突，转交 VS Code Merge UI 审核并停止
+- **第二阶段（push-pr）**: 用户完成审核后再次执行 `/push-pr`，才执行 push + PR 创建/更新
+- **受保护分支特判**: 若起始分支是 `main` 或 `release/*`，必须自动创建 `push-pr/<name>` 子分支，PR 目标默认起始分支
+- **非受保护分支**: 使用 AskUserQuestion 给出动作选项（预检/直推/仅指引）
+
 #### `merge-work-branch`（三合一新建）
 
 - **合并来源**: `finishing-a-development-branch` + 现有 `merge` + `requesting-code-review`(合并操作部分)
@@ -485,6 +497,13 @@ sequenceDiagram
 
     Note over U,AI: 用户提交 prompt
     H->>H: CPST:前十个字 checkpoint
+    H->>AI: additionalContext(当前分支 + 强制分支策略)
+
+    alt 当前分支是 main
+      AI->>U: AskUserQuestion(创建 release 分支 / 创建工作分支)
+    else 当前分支是 release/*
+      AI->>U: AskUserQuestion(创建工作分支 / 保持只读)
+    end
 
     Note over U,AI: /brainstorm 头脑风暴
     AI->>U: 嵌入式深度访谈
@@ -521,6 +540,12 @@ sequenceDiagram
     Note over U,AI: 上车测试完成后
     U->>AI: /merge-work-branch
     AI->>U: 合并指令 + 修改摘要 + 差异分析
+
+    Note over U,AI: 提交审核
+    U->>AI: /push-pr (第1次)
+    AI->>U: 本地 merge-check + 冲突时转交 VS Code Merge UI
+    U->>AI: /push-pr (第2次)
+    AI->>U: push + 创建/更新 PR
 ```
 
 > **设计原则**: 所有 skill 均可独立调用。使用完整流程时，每步执行后给出下一步建议（💡），但不强制跳转。
@@ -572,7 +597,7 @@ sequenceDiagram
 ├── worktrees/
 ```
 
-**删除项**: `hook_pre_tool.sh`, `session-git-map.json`, `fork-explore/`, `agents/`(旧空目录)
+**删除项**: `hook_pre_tool.sh`, `session-git-map.json`, `agent-memory/code-reviewer/`, `fork-explore/`, `agents/`(旧空目录)
 
 ### `plan-git-SHA.json` 格式（完整示例）
 
@@ -649,71 +674,13 @@ sequenceDiagram
         "hooks": [{ "type": "command", "command": ".claude/hooks/hook_pre_tool_branch_guard.sh" }] },
       { "matcher": "*",
         "hooks": [{ "type": "command",
-          "command": ".claude/skills/continuous-learning-v2/hooks/observe.sh pre",
+          "command": ".claude/hooks/memory-observe.sh pre",
           "async": true }] }
     ],
     "PostToolUse": [{ "matcher": "*",
       "hooks": [{ "type": "command",
-        "command": ".claude/skills/continuous-learning-v2/hooks/observe.sh post",
+        "command": ".claude/hooks/memory-observe.sh post",
         "async": true }] }]
   }
 }
 ```
-
----
-
-## 九、执行计划
-
-要利用好superpowers的内容，对明确指示需要删除和修改之外的地方做好借鉴。以下只是简单描述，具体执行细节**必须**仔细看上文内容
-
-**Steps**
-1. Phase 0｜约束冻结与冲突消解  
-   - 固化 hook 职责：workflow-guide 由 hook_session_start.sh 注入；git-harness policy 由 hook_prompt_submit.sh 强制注入。  
-   - 修正文档冲突点（3.2 与 3.1/注释不一致）于 utimate_plan.md。  
-   - 产出“保留/删除/合并”清单，覆盖 fork-explore、writing-skills、dispatching-parallel-agents 的去留映射。  
-
-2. Phase 1｜Hooks 与状态文件基础设施（先可用）  
-   - 重写 hook_session_start.sh：根据计划创建 `.claude/hooks/workflow-guide.md` 并注入 additionalContext。  
-   - 改造 hook_prompt_submit.sh：实现 CPST + 创建并将 `.claude/hooks/git-harness-agent-policy.md`注入additionalContext，强调要强制执行。  
-   - 新建 `.claude/hooks/hook_stop.sh`：实现 CPED。  
-   - 新建 `.claude/hooks/hook_task_complete.sh`：实现 TASK，同时回写 `.claude/plan-git-SHA.json` 的 task.status/completed_at/head_sha 与 plan.head_plan_sha。  
-  - 新建 `.claude/hooks/hook_pre_tool_branch_guard.sh`：在 `PreToolUse` 上阻断受保护分支写操作类工具。  
-   - 新建状态文件与模式：初始化 `.claude/plan-context.json`、`.claude/plan-git-SHA.json` 结构并写好注释方便后续更改。  
-  - 更新 settings.json 事件绑定：`UserPromptSubmit/Stop/TaskCompleted` 去除无效 matcher；`PreToolUse` 接入 branch guard 与 continuous-learning-v2；保留 `PostToolUse` 观察钩子。  
-   - 清理 hook_pre_tool.sh 与 session-git-map.json。  
-
-3. Phase 2｜审查规范附件与 Subagents  
-   - 生成 `.claude/skills/code-review/naming-rules.md` 与 `.claude/skills/code-review/developing-styles.md`。  
-   - 创建 `.claude/agents/spec-reviewer.md`（读取 active_plan + task criteria + interface_specs + SHA 范围）。  
-   - 创建 `.claude/agents/quality-reviewer.md`（嵌入式质量项：volatile/可重入/栈风险等）。  
-   - 补齐模板与调度提示：  
-     - `.claude/skills/code-review/spec-review-tpl.md`  
-     - `.claude/skills/code-review/qlty-review-tpl.md`  
-     - `.claude/skills/code-review/spec-reviewer-prompt.md`  
-     - `.claude/skills/code-review/quality-reviewer-prompt.md`  
-
-4. Phase 3｜先升级 code-review 调度中心（解除依赖环）  
-   - 升级 SKILL.md 为强制链路：spec-reviewer 通过后才可进入 quality-reviewer。  
-   - 实现 SHA 选取策略：plan 级与 task 级范围规则（首 task 使用 base_plan_sha，后续 task 按 completed_at 回溯上一个 head_sha等）。  
-   - 实现 fallback 问询流程（无 in-progress plan 时）。  
-   - 明确失败输出目录为 ReviewReport。  
-
-5. Phase 4｜核心开发 Skills（按依赖顺序）  
-   - 改造 SKILL.md 为“仅编译+输出”。  
-   - 新建 `.claude/skills/implement-and-verify/SKILL.md`。  
-   - 新建 `.claude/skills/brainstorming/SKILL.md`。  
-   - 新建 `.claude/skills/create-todolist/SKILL.md`：输出 PlanPrompt JSON 到 PlanPrompt 并初始化 plan-git-SHA + 激活 plan-context。  
-   - 新建 `.claude/skills/subagent-driven-dev/SKILL.md` 与 `.claude/skills/subagent-driven-dev/implementer-prompt.md`。  
-   - 新建 `.claude/skills/quick-executing-dev/SKILL.md`。  
-   - 新建 `.claude/skills/merge-work-branch/SKILL.md`，输出合并报告到 References/MergeGuide。  
-
-6. Phase 5｜文档收口与一致性清理  
-   - 更新 CLAUDE.md（新工作流、hook 触发、skill 调用链、禁止 worktree）。  
-   - 校准 utimate_plan.md 的“目标结构/删除项/调用链”与实际文件树一致。  
-   - 删除 fork-explore；核验 writing-skills/dispatching-parallel-agents 已完成合并或下线。  
-
-7. Phase 6｜分阶段验收（不是只做末尾总验收）  
-   - Gate A（Phase 1 后）：四个 hook 事件触发正确，CPST/CPED/TASK 格式正确，additionalContext 注入来源正确。  
-   - Gate B（Phase 3 后）：code-review 严格按 spec→quality 运行；无 plan 时 fallback 问询可用。  
-   - Gate C（Phase 4 后）：create-todolist 能写入 PlanPrompt JSON、plan-context、plan-git-SHA；subagent-driven-dev 与 quick-executing-dev 都能触发 code-review。  
-   - Gate D（Phase 5 后）：路径一致性通过（DesignNote/PlanPrompt/MergeGuide/ReviewReport）；删除项不残留断链引用，逐文件审查所有 SKILL.md 确保没有断链引用。  
