@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Hook role:
+# - trigger TASK- prefixed auto-checkpoint commit when task completes and worktree is dirty
+# - update plan-git-SHA metadata for completed task
+# - this hook does not generate skill-level commit suffix content directly
+
 unset GIT_DIR
 unset GIT_WORK_TREE
 unset GIT_COMMON_DIR
@@ -20,17 +25,15 @@ fi
 
 PAYLOAD="$(cat)"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-PLAN_SHA_FILE="$PROJECT_DIR/.claude/plan-git-SHA.json"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PLAN_SHA_FILE="$PROJECT_DIR/plan-git-SHA.json"
 
 TASK_SUBJECT="$(echo "$PAYLOAD" | "$PYTHON_CMD" -c 'import json,sys; d=json.load(sys.stdin); print(d.get("task_subject", ""))' 2>/dev/null || echo "")"
-TASK_PREFIX="$(printf '%s' "$TASK_SUBJECT" | "$PYTHON_CMD" -c 'import sys; s=sys.stdin.read().replace("\n"," ").replace("\r"," ").strip(); print(s[:10])')"
 
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
-        git add -A >/dev/null 2>&1 || true
-        git commit -m "TASK:${TASK_PREFIX}" >/dev/null 2>&1 || true
-    fi
+AUTO_COMMIT_SCRIPT="$SCRIPT_DIR/auto-commit.py"
+if [ -f "$AUTO_COMMIT_SCRIPT" ]; then
+    export HOOK_EVENT_TYPE=task_complete
+    printf '%s' "$PAYLOAD" | "$PYTHON_CMD" "$AUTO_COMMIT_SCRIPT" >/dev/null 2>&1 || true
 fi
 
 CURRENT_BRANCH=""

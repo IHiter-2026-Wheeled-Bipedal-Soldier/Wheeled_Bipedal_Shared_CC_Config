@@ -1,11 +1,15 @@
 #!/bin/bash
 set -e
 
+# Hook role:
+# - inject workflow guide context at session start
+# - inject branch snapshot hint to enforce protected-branch transition protocol
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 GUIDE_FILE_PRIMARY="$CONFIG_DIR/rules/workflow-guide.md"
-GUIDE_FILE_FALLBACK="$PROJECT_DIR/.claude/rules/workflow-guide.md"
+GUIDE_FILE_FALLBACK="$PROJECT_DIR/rules/workflow-guide.md"
 
 if [ -f "$GUIDE_FILE_PRIMARY" ]; then
   ADDITIONAL_CONTEXT="$(cat "$GUIDE_FILE_PRIMARY")"

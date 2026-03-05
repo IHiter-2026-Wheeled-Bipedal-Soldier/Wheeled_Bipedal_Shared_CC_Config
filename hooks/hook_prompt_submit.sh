@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Hook role:
+# - inject runtime branch policy context for the assistant
+# - trigger CPST- prefixed auto-checkpoint commit when worktree is dirty
+# - commit suffix is produced outside this hook (skill/env/file), this hook handles prefix event only
+
 unset GIT_DIR
 unset GIT_WORK_TREE
 unset GIT_COMMON_DIR
@@ -22,13 +27,20 @@ PAYLOAD="$(cat)"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 if [ -n "${CLAUDE_PROJECT_DIR:-}" ] && [ -d "$CLAUDE_PROJECT_DIR" ]; then
   PROJECT_DIR="$CLAUDE_PROJECT_DIR"
 fi
 
+# Auto checkpoint commit for UserPromptSubmit (CPST- prefix).
+AUTO_COMMIT_SCRIPT="$SCRIPT_DIR/auto-commit.py"
+if [ -f "$AUTO_COMMIT_SCRIPT" ]; then
+  export HOOK_EVENT_TYPE=prompt_submit
+  printf '%s' "$PAYLOAD" | "$PYTHON_CMD" "$AUTO_COMMIT_SCRIPT" >/dev/null 2>&1 || true
+fi
+
 POLICY_FILE_PRIMARY="$CONFIG_DIR/rules/git-harness-agent-policy.md"
-POLICY_FILE_FALLBACK="$PROJECT_DIR/.claude/rules/git-harness-agent-policy.md"
+POLICY_FILE_FALLBACK="$PROJECT_DIR/rules/git-harness-agent-policy.md"
 
 if [ -f "$POLICY_FILE_PRIMARY" ]; then
   ADDITIONAL_CONTEXT="$(cat "$POLICY_FILE_PRIMARY")"
