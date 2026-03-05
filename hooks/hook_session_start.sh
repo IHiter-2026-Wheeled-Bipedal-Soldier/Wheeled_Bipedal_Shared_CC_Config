@@ -27,7 +27,7 @@ fi
 ADDITIONAL_CONTEXT="$ADDITIONAL_CONTEXT
 
 Session branch snapshot: $CURRENT_BRANCH
-If branch is main or release/*, before any mutating action you must trigger AskUserQuestion to choose branch transition."
+If branch is main, before any mutating action you must trigger AskUserQuestion to choose branch transition: (1) switch to existing local dev/* branch (enumerated), (2) create new dev/* branch, (3) if creating, ask user for dev/<name>."
 
 # Windows compatibility: test actual execution, not just path existence
 # (Windows has a broken python3.exe stub in WindowsApps)

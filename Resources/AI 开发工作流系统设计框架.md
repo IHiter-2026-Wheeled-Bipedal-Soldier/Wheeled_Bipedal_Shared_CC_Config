@@ -37,7 +37,7 @@ graph TB
         end
         subgraph "分支管理"
             S9["goto → 切换分支/commit"]
-            S10["merge-work-branch<br/>合并报告+执行"]
+          S10["手动合并策略<br/>dev/* -> main"]
         end
         subgraph "辅助工具"
             S12["name-symbol → 变量命名"]
@@ -91,7 +91,7 @@ graph TB
 | `writing-plans` | `create-todolist` | 重命名，保留拆解大任务功能 |
 | `subagent-driven-development` + `dispatching-parallel-agents` | `subagent-driven-dev` | 合并，含并行调度 |
 | `executing-plans` | `quick-executing-dev` | 重命名 |
-| `finishing-a-development-branch` + `merge` + `requesting-code-review`(合并部分) | `merge-work-branch` | 三合一 |
+| `finishing-a-development-branch` + `merge` + `requesting-code-review`(合并部分) | 手动合并策略 | 并入工作流规则 |
 | `code-reviewer` agent | 拆为 `spec-reviewer` + `quality-reviewer` | 两个独立 subagent，由 code-review skill 调度 |
 | — | `implement-and-verify` | 新建，合并 TDD+验证核心 |
 
@@ -105,7 +105,7 @@ graph TB
 
 - **新功能**: 借鉴 Superpowers session-start 模式，通过 `additionalContext` 注入工作流说明
 - **注入来源**: 优先读取 `.claude/rules/workflow-guide.md`，兼容回退 `rules/workflow-guide.md`
-- **分支快照**: SessionStart 注入当前分支名，提示 AI 在 `main`/`release/*` 上先执行 AskUserQuestion 再进行变更类操作
+- **分支快照**: SessionStart 注入当前分支名，提示 AI 在 `main` 上先执行 AskUserQuestion 再进行变更类操作
 - 注入内容用于“开场即知当前分支状态”，并和 UserPromptSubmit 的强制策略配套
 - **输出格式**:
 
@@ -132,11 +132,10 @@ graph TB
 - 读取 `.claude/rules/git-harness-agent-policy.md`（兼容回退 `rules/git-harness-agent-policy.md`）
 - 运行时拼接“当前分支状态”并注入 `additionalContext`，内容包括：
   - Current branch（实时值）
-  - 是否命中受保护分支（`main`/`release/*`）
+  - 是否命中受保护分支（`main`）
   - 命中时**首轮响应必须调用 AskUserQuestion**
-    - `main`: 选“创建 release 分支”或“创建工作分支”
-    - `release/*`: 选“创建工作分支”或“保持只读”
-  - `/push-pr` 在受保护分支时必须自动创建 `push-pr/<name>`，且 PR 目标分支默认原受保护分支
+    - `main`: 选“切换到现有 local `dev/*` 分支（逐条枚举）”或“创建新的 `dev/*` 分支”；如果创建则要求输入 `dev/<name>`
+  - 协作规则：一个人维护一个 `dev/*` 分支，`main` 只存稳定版本，默认不走 Pull Request
 - 此注入为**强制执行**，AI 必须先问后做
 
 ### 3.3 `hook_stop.sh` — 新建
@@ -158,11 +157,11 @@ graph TB
 ### 3.5 `hook_pre_tool_branch_guard.sh` — 受保护分支强制阻断 + 分支过渡放行
 
 - **触发事件**: `PreToolUse`
-- **目标**: 在受保护分支（`main`/`release/*`）上阻断写入型工具调用，同时允许最小分支过渡命令
+- **目标**: 在受保护分支（`main`）上阻断写入型工具调用，同时允许最小分支过渡命令
 - **阻断工具集合**: `Edit`、`Write`、`MultiEdit`、`NotebookEdit`、`Agent`（受保护分支下一律阻断）
 - **Bash 规则**:
   - 放行只读/状态查询命令（如 `git status`、`git branch --show-current`、`git rev-parse`、`git fetch`）
-  - 放行分支切换/创建命令（`work/*`、`release/*`、`push-pr/*`）
+  - 放行分支切换/创建命令（`dev/*`）
   - 其余 Bash 命令在受保护分支阻断
 - **行为**: 既避免直接停机，又保证“先问分支去向，再进入可写分支”
 - **定位**: `.claude/hooks/hook_pre_tool_branch_guard.sh`
@@ -347,9 +346,9 @@ graph TB
 - 含并行子智能体调度能力（从 dispatching-parallel-agents 整合）
 - 每个子任务完成 → **调用 `code-review` skill** → code-review 负责调度 spec-reviewer 和 quality-reviewer
 - 完成标准: keil-build `0 Error(s)`
-- **不自动连接** merge-work-branch，用户自主激发
+- **不自动连接合并技能**，用户按当前 git 逻辑手动合并
 - **独立可调用**: 用户可直接使用（需有 plan）
-- **下一步建议**: 全部完成后建议上车测试 → `/merge-work-branch`
+- **下一步建议**: 全部完成后建议上车测试，随后手动合并 `dev/*` 到 `main`
 - 含 `skills/subagent-driven-dev/implementer-prompt.md` 模板
 - **子智能体开启全部可用能力**: implementer subagent 需要在 SKILL.md 中配置开启所有工具权限（`allowed_tools: all`），使其能访问所有文件、执行命令、读写代码
 
@@ -359,7 +358,7 @@ graph TB
 - 需求实现后 → **调用 `code-review` skill** → 审查流程同上
 - 其余逻辑保持：批次执行 + 人工检查点
 - **独立可调用**: 用户可直接使用（需有 plan）
-- **下一步建议**: 完成后建议上车测试 → `/merge-work-branch`
+- **下一步建议**: 完成后建议上车测试，随后手动合并 `dev/*` 到 `main`
 
 ### 4.2 质量保证
 
@@ -403,20 +402,13 @@ graph TB
 
 #### `goto`（保留现有）
 
-#### `push-pr`（二阶段强制协议）
+#### 手动合并策略（当前规则）
 
-- **第一阶段（merge-check）**: 在本地目标分支快照上做合并预检；若冲突，转交 VS Code Merge UI 审核并停止
-- **第二阶段（push-pr）**: 用户完成审核后再次执行 `/push-pr`，才执行 push + PR 创建/更新
-- **受保护分支特判**: 若起始分支是 `main` 或 `release/*`，必须自动创建 `push-pr/<name>` 子分支，PR 目标默认起始分支
-- **非受保护分支**: 使用 AskUserQuestion 给出动作选项（预检/直推/仅指引）
-
-#### `merge-work-branch`（三合一新建）
-
-- **合并来源**: `finishing-a-development-branch` + 现有 `merge` + `requesting-code-review`(合并操作部分)
-- 功能: 建议工作分支合并到目标分支的指令。
-- 去掉所有 worktree 逻辑。
-- 在对话中直接输出合并指引（含修改说明、合并指令、差异分析）。
-- 只能在上车测试完成后由用户自主激发。
+- `main` 仅保存上车调试后的稳定版本。
+- 每位开发者维护一个按人命名的 `dev/*` 分支，不按功能拆分分支。
+- 新功能若依赖他人代码，先手动合入对方 `dev/*` 分支作为基础。
+- 默认不依赖 Pull Request 流程，变更通过 git 提交历史追踪。
+- 上车测试通过后，用户手动将当前 `dev/*` 分支合并到 `main`。
 
 ### 4.4 辅助工具
 
@@ -542,9 +534,9 @@ sequenceDiagram
     H->>AI: additionalContext(当前分支 + 强制分支策略)
 
     alt 当前分支是 main
-      AI->>U: AskUserQuestion(创建 release 分支 / 创建工作分支)
-    else 当前分支是 release/*
-      AI->>U: AskUserQuestion(创建工作分支 / 保持只读)
+      AI->>U: AskUserQuestion(切换到现有 dev/* 分支(逐条枚举) / 创建新的 dev/* 分支 / 创建时输入 dev/<name>)
+    else 当前分支不是 main
+      AI->>U: 继续常规流程
     end
 
     Note over U,AI: /brainstorm 头脑风暴
@@ -567,27 +559,20 @@ sequenceDiagram
             CR-->>AI: 审查结果
             AI->>AI: 标记完成
         end
-        AI->>U: 💡 建议: 上车测试 → /merge-work-branch
+        AI->>U: 💡 建议: 上车测试后手动合并 dev/* 到 main
     else quick-executing-dev (短程)
         AI->>AI: implement-and-verify 实现需求
         AI->>CR: 调用 code-review
         CR->>SA: spec-reviewer → quality-reviewer
         CR-->>AI: 审查报告
-        AI->>U: 报告 + 💡 建议: 上车测试 → /merge-work-branch
+        AI->>U: 报告 + 💡 建议: 上车测试后手动合并 dev/* 到 main
     end
 
     H->>H: Stop → CPED checkpoint
     H->>H: TaskCompleted → TASK checkpoint
 
     Note over U,AI: 上车测试完成后
-    U->>AI: /merge-work-branch
-    AI->>U: 合并指令 + 修改摘要 + 差异分析
-
-    Note over U,AI: 提交审核
-    U->>AI: /push-pr (第1次)
-    AI->>U: 本地 merge-check + 冲突时转交 VS Code Merge UI
-    U->>AI: /push-pr (第2次)
-    AI->>U: push + 创建/更新 PR
+    U->>U: 手动执行 dev/* -> main 合并
 ```
 
 > **设计原则**: 所有 skill 均可独立调用。使用完整流程时，每步执行后给出下一步建议（💡），但不强制跳转。
@@ -638,7 +623,6 @@ sequenceDiagram
 │   │   └── implementer-prompt.md        #（英文）
 │   ├── quick-executing-dev/SKILL.md     # [新建]（英文）
 │   ├── implement-and-verify/SKILL.md    # [新建]（英文）
-│   ├── merge-work-branch/SKILL.md       # [新建]（英文）
 │   ├── code-review/                     # [升级] 审查调度中心
 │   │   ├── SKILL.md                     #（英文）
 │   │   ├── naming-rules.md              # 命名规范（英文）

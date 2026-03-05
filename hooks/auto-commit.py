@@ -60,7 +60,7 @@ def current_branch() -> str:
 
 
 def is_protected_branch(branch: str) -> bool:
-    return branch == "main" or branch.startswith("release/")
+    return branch == "main"
 
 
 def normalize_text(value: str, max_len: int = 24) -> str:

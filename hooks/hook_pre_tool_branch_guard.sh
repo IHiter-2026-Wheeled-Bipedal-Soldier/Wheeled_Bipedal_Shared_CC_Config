@@ -68,7 +68,7 @@ fi
 
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
 case "$CURRENT_BRANCH" in
-  main|release/*)
+  main)
     ;;
   *)
     exit 0
@@ -82,14 +82,14 @@ fi
 
 if __IsTerminalTool "$TOOL_NAME"; then
   case "$TOOL_COMMAND" in
-    git\ branch\ --show-current*|git\ status*|git\ rev-parse*|git\ fetch*)
+    git\ branch\ --show-current*|git\ branch\ --list*|git\ status*|git\ rev-parse*|git\ fetch*)
       exit 0
       ;;
-    git\ checkout\ -b\ work/*|git\ checkout\ -b\ release/*|git\ checkout\ -b\ push-pr/*|git\ switch\ -c\ work/*|git\ switch\ -c\ release/*|git\ switch\ -c\ push-pr/*|git\ checkout\ work/*|git\ checkout\ release/*|git\ checkout\ push-pr/*|git\ switch\ work/*|git\ switch\ release/*|git\ switch\ push-pr/*)
+    git\ checkout\ -b\ dev/*|git\ switch\ -c\ dev/*|git\ checkout\ dev/*|git\ switch\ dev/*)
       exit 0
       ;;
     *)
-      echo "Protected branch '$CURRENT_BRANCH': blocked Bash command. Allowed now: branch read commands, fetch, and branch transition (work/release/push-pr)." >&2
+      echo "Protected branch '$CURRENT_BRANCH': blocked Bash command. Allowed now: branch read commands, fetch, and branch transition (dev/*)." >&2
       exit 2
       ;;
   esac

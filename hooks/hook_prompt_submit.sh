@@ -47,7 +47,7 @@ if [ -f "$POLICY_FILE_PRIMARY" ]; then
 elif [ -f "$POLICY_FILE_FALLBACK" ]; then
   ADDITIONAL_CONTEXT="$(cat "$POLICY_FILE_FALLBACK")"
 else
-  ADDITIONAL_CONTEXT="MANDATORY: Enforce protected-branch read-only mode, guide user to create a work branch with git checkout -b work/<name>, and never use git worktree."
+  ADDITIONAL_CONTEXT="MANDATORY: Enforce protected-branch read-only mode, guide user to create/switch to dev branch with git checkout -b dev/<name>, and never use git worktree."
 fi
 
 CURRENT_BRANCH="unknown"
@@ -57,14 +57,32 @@ fi
 
 PROTECTED_HINT="NO"
 ASK_HINT="No forced branch-choice required."
+
+DEV_BRANCH_OPTIONS=""
+DEV_BRANCH_COUNT=0
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  while IFS= read -r BRANCH_NAME; do
+    [ -z "$BRANCH_NAME" ] && continue
+    DEV_BRANCH_COUNT=$((DEV_BRANCH_COUNT + 1))
+    DEV_BRANCH_OPTIONS="$DEV_BRANCH_OPTIONS
+  ${DEV_BRANCH_COUNT}) Switch to existing branch ${BRANCH_NAME}"
+  done <<EOF
+$(git for-each-ref --format='%(refname:short)' "refs/heads/dev/*" 2>/dev/null)
+EOF
+fi
+
+if [ -z "$DEV_BRANCH_OPTIONS" ]; then
+  DEV_BRANCH_OPTIONS="
+  (No local dev/* branch found)"
+fi
+
 case "$CURRENT_BRANCH" in
   main)
     PROTECTED_HINT="YES"
-    ASK_HINT="MANDATORY FIRST RESPONSE: Call AskUserQuestion immediately with options: (1) Create release/<name> branch (2) Create work/<name> branch. Do not run any mutating tool before this question is answered."
-    ;;
-  release/*)
-    PROTECTED_HINT="YES"
-    ASK_HINT="MANDATORY FIRST RESPONSE: Call AskUserQuestion immediately with options: (1) Create work/<name> branch (2) Keep read-only. Do not run any mutating tool before this question is answered."
+    ASK_HINT="MANDATORY FIRST RESPONSE: Call AskUserQuestion immediately with options:${DEV_BRANCH_OPTIONS}
+  $((DEV_BRANCH_COUNT + 1))) Create a new dev branch
+  $((DEV_BRANCH_COUNT + 2))) If creating a new dev branch, ask user to input branch name below (format: dev/<name>).
+Do not run any mutating tool before this question is answered."
     ;;
 esac
 
@@ -75,7 +93,8 @@ RUNTIME BRANCH CONTEXT (MANDATORY)
 - Current git branch: $CURRENT_BRANCH
 - Protected branch detected: $PROTECTED_HINT
 - $ASK_HINT
-- For /push-pr on protected branch: auto-create push-pr/<name> and default PR base to the original protected branch.
+- Collaboration model: one developer owns one dev branch; merge manually to main after on-robot validation.
+- Pull Request workflow is not required in this repository.
 "
 
 export ADDITIONAL_CONTEXT PYTHON_CMD
