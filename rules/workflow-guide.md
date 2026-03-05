@@ -10,7 +10,7 @@ Use this repository workflow for embedded chassis development:
 4. Ensure implementation uses `implement-and-verify` and confirms build evidence.
 5. Trigger `code-review` before claiming completion.
 6. After on-robot validation, run `merge-work-branch`.
-7. To commit changes: use `/commit`.
+7. To commit changes: use `/commit`. For hook-triggered checkpoint commits, prefix (`CPST-`/`CPED-`/`TASK-`) is auto-injected by hook scripts; `/commit` skill only generates the Conventional Commit suffix. Manual `/commit` does not auto-add CP prefixes.
 8. To push and open a PR: use `/push-pr`.
 9. To sync with the latest main branch and submodules: use `/sync-latest`.
 10. To archive a release snapshot: use `/git-archive`.

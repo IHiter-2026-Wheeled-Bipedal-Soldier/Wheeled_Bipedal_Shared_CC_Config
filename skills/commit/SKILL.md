@@ -2,7 +2,6 @@
 name: commit
 description: 'Execute git commit with conventional commit message analysis, intelligent staging, and message generation. Use when user asks to commit changes, create a git commit, or mentions "/commit". Supports: (1) Auto-detecting type and scope from changes, (2) Generating conventional commit messages from diff, (3) Interactive commit with optional type/scope/description overrides, (4) Intelligent file staging for logical grouping'
 license: MIT
-allowed-tools: Bash
 ---
 
 # Git Commit with Conventional Commits
@@ -22,6 +21,22 @@ Create standardized, semantic git commits using the Conventional Commits specifi
 ```
 
 The parts marked as <description>, [optional body], and [optional footer(s)] MUST be filled in Chinese.
+
+## Hook Prefix Composition Rule
+
+This skill generates only the Conventional Commit suffix:
+
+```
+<type>[optional scope]: <description>
+```
+
+Do NOT generate `CPST-`, `CPED-`, or `TASK-` in this skill output.
+
+- Hook-triggered auto commits: hooks/scripts prepend `CPST-` / `CPED-` / `TASK-` automatically.
+- Manual `/commit`: no automatic CP prefix is added.
+- Final message for hook-triggered commits is composed as:
+	- `<hook-prefix>-` + `<skill-generated conventional suffix>`
+	- Example: `CPED-` + `feat: 增加了轮速补偿` -> `CPED-feat: 增加了轮速补偿`
 
 ## Commit Types
 
