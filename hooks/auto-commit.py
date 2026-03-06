@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Auto checkpoint commit helper for hook-triggered commits.
 
 Responsibilities:
@@ -9,12 +10,19 @@ Responsibilities:
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+# Force UTF-8 for all I/O on Windows to avoid GBK/CP936 encoding issues
+if sys.platform == "win32":
+    sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8", errors="replace")
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 
 PREFIX_MAP = {
@@ -33,7 +41,15 @@ CONVENTIONAL_RE = re.compile(r"^[a-z]+(\([^)]+\))?!?:\s+.+")
 
 
 def run_git(args: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["git", *args], capture_output=True, text=True, check=False)
+    # Explicitly use UTF-8 encoding to avoid Windows GBK/CP936 issues
+    return subprocess.run(
+        ["git", *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
 
 
 def git_ok(args: list[str]) -> bool:
