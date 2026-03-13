@@ -3,6 +3,12 @@
     "name": "26_Infantry_01_Chassis_Main_Controller",
     "root": "e:\\CODE_project\\IHiter-2026-Wheeled-Bipedal-Soldier\\26_Infantry_01\\26_Infantry_01_Chassis_Main_Controller",
     "remote": "https://github.com/IHiter-2026-Wheeled-Bipedal-Soldier/26_Infantry_01_Chassis_Main_Controller.git",
-    "last_seen": "2026-03-12T15:27:30.715557Z"
+    "last_seen": "2026-03-06T11:31:53.545477Z"
+  },
+  "9b8201887772": {
+    "name": "26_Infantry_01_Gimbal_Main_Controller",
+    "root": "E:\\CODE_project\\IHiter-2026-Wheeled-Bipedal-Soldier\\26_Infantry_01\\26_Infantry_01_Gimbal_Main_Controller",
+    "remote": "https://github.com/IHiter-2026-Wheeled-Bipedal-Soldier/26_Infantry_01_Gimbal_Main_Controller.git",
+    "last_seen": "2026-03-08T00:35:44.547252Z"
   }
 }
