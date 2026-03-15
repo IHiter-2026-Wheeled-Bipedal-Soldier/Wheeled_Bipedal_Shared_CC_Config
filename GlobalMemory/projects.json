@@ -4,5 +4,11 @@
     "root": "E:/CODE_project/IHiter-2026-Wheeled-Bipedal-Soldier/26_Infantry_01/26_Infantry_01_Gimbal_Main_Controller",
     "remote": "https://github.com/IHiter-2026-Wheeled-Bipedal-Soldier/26_Infantry_01_Gimbal_Main_Controller.git",
     "last_seen": "2026-03-04T06:55:27.433489Z"
+  },
+  "7193626253c0": {
+    "name": "Wheeled_Bipedal_Shared_Base",
+    "root": "E:/CODE_project/IHiter-2026-Wheeled-Bipedal-Soldier/Wheeled_Bipedal_Shared_Base",
+    "remote": "https://github.com/IHiter-2026-Wheeled-Bipedal-Soldier/Wheeled_Bipedal_Shared_Base.git",
+    "last_seen": "2026-03-05T08:54:05.953527Z"
   }
 }

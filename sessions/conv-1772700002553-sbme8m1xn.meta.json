@@ -1,0 +1,20 @@
+{
+  "id": "conv-1772700002553-sbme8m1xn",
+  "title": "我需要你在文末说明一下这个计算需要的数据输入和数据输出，并表明这些数据的单位和正方向",
+  "titleGenerationStatus": "failed",
+  "createdAt": 1772700002590,
+  "updatedAt": 1772701151918,
+  "lastResponseAt": 1772701151918,
+  "sessionId": "9b585b3f-396b-4d0c-9274-9e180fe36db6",
+  "sdkSessionId": "9b585b3f-396b-4d0c-9274-9e180fe36db6",
+  "currentNote": "利用陀螺仪获得云台电机角速度.md",
+  "usage": {
+    "model": "haiku",
+    "inputTokens": 0,
+    "cacheCreationInputTokens": 0,
+    "cacheReadInputTokens": 0,
+    "contextWindow": 200000,
+    "contextTokens": 0,
+    "percentage": 0
+  }
+}
