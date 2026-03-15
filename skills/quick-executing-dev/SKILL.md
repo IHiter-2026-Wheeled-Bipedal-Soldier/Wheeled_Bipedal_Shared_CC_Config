@@ -19,5 +19,5 @@ user-invocable: true
 ## Completion
 
 - Provide concise result and risks.
-- Suggest next step: on-robot validation, then `merge-work-branch`.
+- Suggest next step: on-robot validation, then manually merge `dev/*` to `main` according to current git collaboration rules.
 - Use Chinese for output summaries and reports.

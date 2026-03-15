@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Hook role:
+# - trigger CPED- prefixed auto-checkpoint commit when worktree is dirty
+# - commit suffix is composed by helper logic; prefix source is this hook event type
+
 unset GIT_DIR
 unset GIT_WORK_TREE
 unset GIT_COMMON_DIR
@@ -15,6 +19,8 @@ elif python -c "import sys" >/dev/null 2>&1; then
 else
   exit 0  # Python not available, skip auto-commit
 fi
+
+PAYLOAD="$(cat)"
 
 # Check if inside a git repository
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -31,7 +37,7 @@ AUTO_COMMIT_SCRIPT="$SCRIPT_DIR/auto-commit.py"
 
 # Execute auto-commit with Python
 if [ -f "$AUTO_COMMIT_SCRIPT" ]; then
-  "$PYTHON_CMD" "$AUTO_COMMIT_SCRIPT" 2>/dev/null || true
+  printf '%s' "$PAYLOAD" | "$PYTHON_CMD" "$AUTO_COMMIT_SCRIPT" 2>/dev/null || true
 fi
 
 exit 0
