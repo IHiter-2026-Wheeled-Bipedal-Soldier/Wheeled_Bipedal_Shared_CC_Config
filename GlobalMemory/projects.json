@@ -1,26 +1,8 @@
 {
-  "cb75161bdd20": {
-    "name": "25_Infantry_Bing_Chassis_Main_Controller",
-    "root": "e:\\CODE_project\\IHiter-2026-Wheeled-Bipedal-Soldier\\25_Infantry_Bing\\25_Infantry_Bing_Chassis_Main_Controller",
-    "remote": "https://github.com/IHiter-2026-Wheeled-Bipedal-Soldier/25_Infantry_Bing_Chassis_Main_Controller.git",
-    "last_seen": "2026-03-09T05:12:20.755034Z"
-  },
   "9d02a74665e3": {
     "name": "26_Infantry_01_Chassis_Main_Controller",
     "root": "e:\\CODE_project\\IHiter-2026-Wheeled-Bipedal-Soldier\\26_Infantry_01\\26_Infantry_01_Chassis_Main_Controller",
     "remote": "https://github.com/IHiter-2026-Wheeled-Bipedal-Soldier/26_Infantry_01_Chassis_Main_Controller.git",
-    "last_seen": "2026-03-14T07:34:05.071836Z"
-  },
-  "9b8201887772": {
-    "name": "26_Infantry_01_Gimbal_Main_Controller",
-    "root": "E:\\CODE_project\\IHiter-2026-Wheeled-Bipedal-Soldier\\26_Infantry_01\\26_Infantry_01_Gimbal_Main_Controller",
-    "remote": "https://github.com/IHiter-2026-Wheeled-Bipedal-Soldier/26_Infantry_01_Gimbal_Main_Controller.git",
-    "last_seen": "2026-03-04T06:55:27.433489Z"
-  },
-  "7193626253c0": {
-    "name": "Wheeled_Bipedal_Shared_Base",
-    "root": "E:/CODE_project/IHiter-2026-Wheeled-Bipedal-Soldier/Wheeled_Bipedal_Shared_Base",
-    "remote": "https://github.com/IHiter-2026-Wheeled-Bipedal-Soldier/Wheeled_Bipedal_Shared_Base.git",
-    "last_seen": "2026-03-05T08:54:05.953527Z"
+    "last_seen": "2026-03-21T10:30:57.824210Z"
   }
 }
