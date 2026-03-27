@@ -22,21 +22,20 @@ fi
 
 PAYLOAD="$(cat)"
 
-# Check if inside a git repository
-if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  exit 0
-fi
-
 # Set environment variables for auto-commit.py
-export HOOK_TRIGGERED=true
 export HOOK_EVENT_TYPE=stop
 
 # Get the script directory
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [ -n "${CLAUDE_PROJECT_DIR:-}" ] && [ -d "$CLAUDE_PROJECT_DIR" ]; then
+  PROJECT_DIR="$CLAUDE_PROJECT_DIR"
+fi
 AUTO_COMMIT_SCRIPT="$SCRIPT_DIR/auto-commit.py"
 
 # Execute auto-commit with Python
 if [ -f "$AUTO_COMMIT_SCRIPT" ]; then
+  export CLAUDE_PROJECT_DIR="$PROJECT_DIR"
   printf '%s' "$PAYLOAD" | "$PYTHON_CMD" "$AUTO_COMMIT_SCRIPT" 2>/dev/null || true
 fi
 

@@ -10,7 +10,7 @@ Use this repository workflow for embedded chassis development:
 4. Ensure implementation uses `implement-and-verify` and confirms build evidence.
 5. Trigger `code-review` before claiming completion.
 6. After on-robot validation, run `merge-work-branch`.
-7. To commit changes: use `/commit`. For hook-triggered checkpoint commits, prefix (`CPST-`/`CPED-`/`TASK-`) is auto-injected by hook scripts; `/commit` skill only generates the Conventional Commit suffix. Manual `/commit` does not auto-add CP prefixes.
+7. To commit changes: use `/commit`. Hook-triggered checkpoint commits now include only `CPST-` (first prompt of session) and `CPED-` (session stop) prefixes, and the suffix is generated as a short Chinese Conventional Commit summary.
 8. To push and open a PR: use `/push-pr`.
 9. To sync with the latest main branch and submodules: use `/sync-latest`.
 10. To archive a release snapshot: use `/git-archive`.
@@ -29,4 +29,4 @@ Notes:
 - Follow project naming/style conventions from `rules/naming-rules.md`.
 - Follow coding style from `rules/developing-styles.md`.
 - Build evidence must be explicit before final completion.
-- All AI edits must happen on a work branch, never on protected branches (main/release/*).
+- If git is not initialized, assistant asks once per session whether to run `git init` or continue without git.

@@ -15,11 +15,9 @@
 ```mermaid
 graph TB
     subgraph "Hooks 层（确定性触发）"
-        H1["hook_session_start.sh<br/>SessionStart:<br/>注入工作流上下文"]
-        H2["hook_prompt_submit.sh<br/>UserPromptSubmit:<br/>CPST checkpoint<br/>注入git控制上下文"]
+        H1["hook_session_start.sh<br/>SessionStart:<br/>重置会话状态 + 最小上下文"]
+        H2["hook_prompt_submit.sh<br/>UserPromptSubmit:<br/>CPST checkpoint(每会话一次)<br/>未git init时一次性提问"]
         H3["hook_stop.sh<br/>Stop:<br/>CPED checkpoint"]
-        H4["hook_task_complete.sh<br/>TaskCompleted:<br/>TASK checkpoint"]
-      H5["hook_pre_tool_branch_guard.sh<br/>PreToolUse:<br/>受保护分支工具强制阻断"]
     end
 
     subgraph "Skills 层"
@@ -74,6 +72,9 @@ graph TB
 | `session-git-map.json` + session-branch 映射功能 | 不保留此功能 |
 | `.claude/agent-memory/code-reviewer/` | 旧记忆目录，不再保留 |
 | `hook_pre_tool.sh` | checkpoint 已在 prompt_submit 和 stop 保证 |
+| `hook_pre_tool_branch_guard.sh` | 分支强阻断策略已移除，改为最小会话自动提交流程 |
+| `hook_task_complete.sh` | 仅保留会话开始/结束自动提交，不再做 TASK checkpoint |
+| `rules/git-harness-agent-policy.md` | 旧强管控策略下线，避免额外上下文开销 |
 | `fork-explore` skill | 暂不使用 |
 | `writing-skills` skill | 暂不添加 |
 | `dispatching-parallel-agents` skill | 整合到 subagent-driven-dev |
@@ -99,119 +100,85 @@ graph TB
 
 ## 三、Hooks 详细设计
 
-> 官方文档确认：Stop payload 含 `last_assistant_message`，TaskCompleted 含 `task_subject`，UserPromptSubmit 含 `prompt`，SessionStart 支持 `additionalContext` 上下文注入。
+> 官方文档确认：Stop payload 含 `last_assistant_message`，UserPromptSubmit 含 `prompt`，SessionStart 支持 `additionalContext` 上下文注入。
 
-### 3.1 `hook_session_start.sh` — 上下文注入 + 分支快照
+### 3.1 `hook_session_start.sh` — 重置会话状态 + 最小上下文注入
 
-- **新功能**: 借鉴 Superpowers session-start 模式，通过 `additionalContext` 注入工作流说明
-- **注入来源**: 优先读取 `.claude/rules/workflow-guide.md`，兼容回退 `rules/workflow-guide.md`
-- **分支快照**: SessionStart 注入当前分支名，提示 AI 在 `main`/`release/*` 上先执行 AskUserQuestion 再进行变更类操作
-- 注入内容用于“开场即知当前分支状态”，并和 UserPromptSubmit 的强制策略配套
+- 会话开始时调用 `auto-commit.py` 的 `session_start` 事件，重置会话状态文件 `git-session-state.json`。
+- 仅注入最小运行时说明，避免加载大段 workflow/policy 文本。
 - **输出格式**:
 
   ```json
   {
     "hookSpecificOutput": {
       "hookEventName": "SessionStart",
-      "additionalContext": "<workflow-guide.md 内容>"
+      "additionalContext": "Runtime hooks active: CPST/CPED ..."
     }
   }
   ```
 
-### 3.2 `hook_prompt_submit.sh` — 签名 + 强制分支策略注入
+### 3.2 `hook_prompt_submit.sh` — CPST 自动提交 + 未 git init 一次性提问
 
 **Checkpoint 功能**:
 
-- **现有**: `CP: Checkpoint before prompt: $PROMPT`
-- **目标**: `CPST-用户提示词的前十个字`
-- payload 字段: `prompt`
-- 中文截取: 使用 awk/sed 处理 UTF-8 字符，一个汉字算一个字
+- 事件：`UserPromptSubmit`。
+- 若当前目录已 `git init`，并且本会话尚未执行过起始 checkpoint，则执行一次 `CPST-` 自动提交。
+- 若无代码变更，不提交。
 
-**上下文注入功能（强制执行）**:
+**未 git init 处理**:
 
-- 读取 `.claude/rules/git-harness-agent-policy.md`（兼容回退 `rules/git-harness-agent-policy.md`）
-- 运行时拼接“当前分支状态”并注入 `additionalContext`，内容包括：
-  - Current branch（实时值）
-  - 是否命中受保护分支（`main`/`release/*`）
-  - 命中时**首轮响应必须调用 AskUserQuestion**
-    - `main`: 选“创建 release 分支”或“创建工作分支”
-    - `release/*`: 选“创建工作分支”或“保持只读”
-  - `/push-pr` 在受保护分支时必须自动创建 `push-pr/<name>`，且 PR 目标分支默认原受保护分支
-- 此注入为**强制执行**，AI 必须先问后做
+- 当检测到当前目录未 `git init` 且本会话尚未提问时，注入强制说明：
+  - 先调用 AskUserQuestion。
+  - 选项 1：`INIT_GIT_NOW`（立即初始化 git）。
+  - 选项 2：`SKIP_GIT_THIS_SESSION`（本会话跳过 git）。
+- 一旦完成首次提问，本会话后续 PromptSubmit 不再重复询问。
 
 ### 3.3 `hook_stop.sh` — 新建
 
-- payload 字段: `last_assistant_message`
-- 签名: `CPED-AI回答的前十个字`
-- 纯脚本执行，无需 AI 智能层介入
+- payload 字段: `last_assistant_message`。
+- 会话结束时若存在未提交更改，执行一次 `CPED-` 自动提交。
+- 若无代码变更，不提交。
 
-### 3.4 `hook_task_complete.sh` — 新建
-
-- payload 字段: `task_subject`、`task_description`
-- **双重功能**:
-  1. Git checkpoint 签名: `TASK-任务名称的前十个字`
-  2. **更新 `plan-git-SHA.json`**: 读取当前分支最新 git SHA 和完成时间，写入对应 task 的 `head_sha` 和 `completed_at` 字段，将 task 状态改为 `completed`
-- 匹配逻辑: 用 `task_subject` 匹配 plan-git-SHA.json 中于当前工作区同分支最新的 `in progress` plan 下的 task 名称
-- 同时更新该 plan 的 `head_plan_sha` 为最新提交。plan的‘status’在当前plan的todolist的最后一个任务处理完成（也就是其status变成completed时）自动变成completed。
-
-
-### 3.5 `hook_pre_tool_branch_guard.sh` — 受保护分支强制阻断 + 分支过渡放行
-
-- **触发事件**: `PreToolUse`
-- **目标**: 在受保护分支（`main`/`release/*`）上阻断写入型工具调用，同时允许最小分支过渡命令
-- **阻断工具集合**: `Edit`、`Write`、`MultiEdit`、`NotebookEdit`、`Agent`（受保护分支下一律阻断）
-- **Bash 规则**:
-  - 放行只读/状态查询命令（如 `git status`、`git branch --show-current`、`git rev-parse`、`git fetch`）
-  - 放行分支切换/创建命令（`work/*`、`release/*`、`push-pr/*`）
-  - 其余 Bash 命令在受保护分支阻断
-- **行为**: 既避免直接停机，又保证“先问分支去向，再进入可写分支”
-- **定位**: `.claude/hooks/hook_pre_tool_branch_guard.sh`
-
-### 3.6 提交信息拼接规则（连字符统一）
+### 3.4 提交信息拼接规则（连字符统一）
 
 - 自动 checkpoint 提交信息采用统一拼接格式：`<PREFIX-> + <Conventional Commit suffix>`
-  - Prefix（由 hooks 脚本自动注入）: `CPST-` / `CPED-` / `TASK-`
-  - Suffix（由调用 `/commit` skill 生成）: `<type>[scope]: <description>`
-- 示例：`CPED-` + `feat: 增加了轮速补偿` => `CPED-feat: 增加了轮速补偿`
+  - Prefix（由 hooks 自动注入）: `CPST-` / `CPED-`
+  - Suffix（短中文 Conventional Commit）: `<type>: <中文简述>`
+- 示例：`CPED-` + `chore: 更新hooks自动提交流程（新增0修改3删除0重命名0）`。
 - 职责边界：
-  - hooks 只负责前缀触发与拼接入口，不在 skill 内硬编码 CP 前缀。
-  - checkpoint（如“前十个字 checkpoint”类提交）统一通过调用 `commit` skill 生成前缀后的后半段。
-  - `skills/commit/SKILL.md` 只生成 Conventional Commit 后半段。
+  - hooks 负责 checkpoint 触发与前缀拼接。
+  - 后缀优先使用外部传入（`COMMIT_SUFFIX` 或 `commit_suffix.txt`），否则根据 staged diff 自动生成短中文 Conventional Commit。
   - 手动触发 `/commit` 不自动添加 CP 前缀。
 
-### 3.7 settings.json hooks 配置
+### 3.5 settings.json hooks 配置
 
 ```json
 {
   "hooks": {
     "SessionStart": [{ "matcher": "startup|resume|clear|compact",
-      "hooks": [{ "type": "command", "command": ".claude/hooks/hook_session_start.sh" }] }],
+      "hooks": [{ "type": "command", "command": "bash \"hooks/hook_session_start.sh\"" }] }],
     "UserPromptSubmit": [{
-      "hooks": [{ "type": "command", "command": ".claude/hooks/hook_prompt_submit.sh" }] }],
+      "hooks": [{ "type": "command", "command": "bash \"hooks/hook_prompt_submit.sh\"" }] }],
     "Stop": [{
       "hooks": [
-        { "type": "command", "command": ".claude/hooks/hook_stop.sh", "async": true },
-        { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/hooks/windows_notification.ps1\" -Title \"Copilot Hooks\" -EventType stop", "async": true }
+        { "type": "command", "command": "bash \"hooks/hook_stop.sh\"", "async": true },
+        { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"hooks/windows_notification.ps1\" -Title \"Copilot Hooks\" -EventType stop", "async": true }
       ] }],
-    "TaskCompleted": [{
-      "hooks": [{ "type": "command", "command": ".claude/hooks/hook_task_complete.sh", "async": true }] }],
     "PreToolUse": [
-      { "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Agent",
-        "hooks": [{ "type": "command", "command": ".claude/hooks/hook_pre_tool_branch_guard.sh" }] },
       { "matcher": "*",
-        "hooks": [{ "type": "command", "command": ".claude/hooks/memory-observe.sh pre", "async": true }] }
+        "hooks": [{ "type": "command", "command": "bash \"hooks/memory-observe.sh\" pre", "async": true }] }
     ],
     "PostToolUse": [{ "matcher": "*",
-      "hooks": [{ "type": "command", "command": ".claude/hooks/memory-observe.sh post", "async": true }] }]
+      "hooks": [{ "type": "command", "command": "bash \"hooks/memory-observe.sh\" post", "async": true }] }]
   }
 }
 ```
 
-> **新增文件**: `.claude/rules/workflow-guide.md` — 推荐工作流说明文档，由 hook_session_start.sh 读取并注入
+> **会话状态文件**: `git-session-state.json`（仓库根目录）
 >
-> `.claude/rules/git-harness-agent-policy.md` — 强制git管控说明文档，由 hook_prompt_submit.sh 读取并注入
+> 记录字段：`git_init_prompted`、`git_init_decision`、`start_commit_done`、`session_marker`、`updated_at`。
 
-### 3.8 continuous-learning-v2 hooks（v2.1 实现态）
+### 3.6 continuous-learning-v2 hooks（v2.1 实现态）
 
 - **`memory-observe.sh`（已落地）**:
   - 绑定于 `PreToolUse` / `PostToolUse`，分别写入 `tool_start` / `tool_complete` 事件。
@@ -225,7 +192,7 @@ graph TB
 - **Windows 兼容策略（已落地）**:
   - 所有 memory 相关脚本统一采用“实际执行检测”选择 Python：优先 `python3 -c` 可执行，再回退 `python -c`。
 
-> 说明：`workflow-guide.md` 与 `git-harness-agent-policy.md` 的实现位置为 `.claude/rules/`，并由 hooks 读取注入。
+> 说明：当前实现仅在 SessionStart/UserPromptSubmit 注入最小上下文，不再加载分支强管控策略文件。
 
 ---
 
@@ -577,7 +544,6 @@ sequenceDiagram
     end
 
     H->>H: Stop → CPED checkpoint
-    H->>H: TaskCompleted → TASK checkpoint
 
     Note over U,AI: 上车测试完成后
     U->>AI: /merge-work-branch
@@ -611,19 +577,17 @@ sequenceDiagram
 │       └── agents/
 ├── plan-context.json          # [新建] 当前激活计划路径
 ├── plan-git-SHA.json          # [新建] plan/task git SHA 追踪
+├── git-session-state.json     # [新建] 会话态：git_init_prompted/start_commit_done
 ├── hooks/
-│   ├── hook_session_start.sh  # [重写] 读取 workflow-guide.md 注入
-│   ├── hook_prompt_submit.sh  # [改造] CPST 签名 + git-harness 注入
+│   ├── hook_session_start.sh  # [重写] 重置会话状态 + 最小上下文注入
+│   ├── hook_prompt_submit.sh  # [改造] CPST 签名 + 未git init一次性提问
 │   ├── hook_stop.sh           # [新建] CPED 签名
-│   ├── hook_task_complete.sh  # [新建] TASK 签名
-│   ├── auto-commit.py         # [新增] 统一前缀拼接与自动提交入口（CPST-/CPED-/TASK-）
-│   ├── hook_pre_tool_branch_guard.sh # [新建] 受保护分支写操作阻断
+│   ├── auto-commit.py         # [新增] 统一前缀拼接与自动提交入口（CPST-/CPED-）
 │   ├── memory-observe.sh      # [新建] v2.1 观测入口（pre/post）
 │   ├── memory-detect-project.sh # [新建] v2.1 项目识别与registry更新
 │   └── windows_notification.ps1 # [新增] 项目内 Windows 通知 hook
 ├── rules/
-│   ├── workflow-guide.md      # [新建] 推荐工作流说明（英文）
-│   └── git-harness-agent-policy.md  # [新建] 分支保护策略（英文，强制）
+│   └── workflow-guide.md      # [新建] 推荐工作流说明（英文）
 ├── agents/
 │   ├── spec-reviewer.md       # [新建] 规范合规审查（英文）
 │   ├── quality-reviewer.md    # [新建] 代码质量审查（英文）
@@ -719,14 +683,14 @@ sequenceDiagram
 
 - plan: `in_progress` / `completed` 默认为`in_progress`
 - task：`pending`/`completed` 默认为`pending`
-  - task 状态可通过内置 Todo 工具读取，`hook_task_complete.sh` 在 task 完成时改写 `head_sha` + `completed_at`
+  - task 状态由开发流程工具更新，hooks 不再在 TaskCompleted 事件改写 task SHA。
 
 - plan/task 进入 `completed` 后 head SHA 冻结不再更新
 
 **写入时机**:
 
 - `create-todolist`: 初始化新 plan 条目（所有 SHA=当前最新提交，所有 task status=pending）
-- `hook_task_complete.sh`: task 完成时更新 head_sha + status=completed + completed_at，同时更新 plan 的 head_plan_sha
+- Task 完成后的 SHA/状态更新由计划执行流程自身维护（不再依赖 TaskCompleted hook 自动改写）
 
 ### `settings.json` hooks 配置（含 continuous-learning-v2）
 
@@ -734,27 +698,23 @@ sequenceDiagram
 {
   "hooks": {
     "SessionStart": [{ "matcher": "startup|resume|clear|compact",
-      "hooks": [{ "type": "command", "command": ".claude/hooks/hook_session_start.sh" }] }],
+      "hooks": [{ "type": "command", "command": "bash \"hooks/hook_session_start.sh\"" }] }],
     "UserPromptSubmit": [{
-      "hooks": [{ "type": "command", "command": ".claude/hooks/hook_prompt_submit.sh" }] }],
+      "hooks": [{ "type": "command", "command": "bash \"hooks/hook_prompt_submit.sh\"" }] }],
     "Stop": [{
       "hooks": [
-        { "type": "command", "command": ".claude/hooks/hook_stop.sh", "async": true },
-        { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/hooks/windows_notification.ps1\" -Title \"Copilot Hooks\" -EventType stop", "async": true }
+        { "type": "command", "command": "bash \"hooks/hook_stop.sh\"", "async": true },
+        { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"hooks/windows_notification.ps1\" -Title \"Copilot Hooks\" -EventType stop", "async": true }
       ] }],
-    "TaskCompleted": [{
-      "hooks": [{ "type": "command", "command": ".claude/hooks/hook_task_complete.sh", "async": true }] }],
     "PreToolUse": [
-      { "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Agent",
-        "hooks": [{ "type": "command", "command": ".claude/hooks/hook_pre_tool_branch_guard.sh" }] },
       { "matcher": "*",
         "hooks": [{ "type": "command",
-          "command": ".claude/hooks/memory-observe.sh pre",
+          "command": "bash \"hooks/memory-observe.sh\" pre",
           "async": true }] }
     ],
     "PostToolUse": [{ "matcher": "*",
       "hooks": [{ "type": "command",
-        "command": ".claude/hooks/memory-observe.sh post",
+        "command": "bash \"hooks/memory-observe.sh\" post",
         "async": true }] }]
   }
 }

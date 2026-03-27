@@ -30,9 +30,9 @@ This skill generates only the Conventional Commit suffix:
 <type>[optional scope]: <description>
 ```
 
-Do NOT generate `CPST-`, `CPED-`, or `TASK-` in this skill output.
+Do NOT generate `CPST-` or `CPED-` in this skill output.
 
-- Hook-triggered auto commits: hooks/scripts prepend `CPST-` / `CPED-` / `TASK-` automatically.
+- Hook-triggered auto commits: hooks/scripts prepend `CPST-` / `CPED-` automatically.
 - Manual `/commit`: no automatic CP prefix is added.
 - Final message for hook-triggered commits is composed as:
 	- `<hook-prefix>-` + `<skill-generated conventional suffix>`

@@ -51,27 +51,7 @@
         ]
       }
     ],
-    "TaskCompleted": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"hooks/hook_task_complete.sh\"",
-            "async": true
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
-      {
-        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"hooks/hook_pre_tool_branch_guard.sh\""
-          }
-        ]
-      },
       {
         "matcher": "*",
         "hooks": [
