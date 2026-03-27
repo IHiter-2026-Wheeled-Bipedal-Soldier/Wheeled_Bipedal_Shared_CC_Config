@@ -17,11 +17,16 @@ Use this repository workflow for embedded chassis development:
 11. To clean up stale [gone] branches: use `/clean-gone`.
 12. To update submodules (.claude/ memory): use `/sync-submodules`.
 
-## Push-PR Execution Notes
+## Git Collaboration Notes
 
-- `/push-pr` runs in two stages: first run does local merge-check (with VS Code merge UI guidance if conflicts occur), second run pushes branch and creates/updates PR.
-- If current branch is protected (`main` or `release/*`), `/push-pr` must auto-create `push-pr/<name>` and use the original branch as default PR target.
-- If current branch is not protected, use AskUserQuestion to ask what user wants to do before push/PR actions.
+- `main` stores only stable code validated on robot.
+- Use one owner-based `dev/*` branch per developer, not feature-based branch naming.
+- If a feature depends on another developer's work, manually merge that developer's `dev/*` branch first.
+- Pull Request flow is optional and not required in this repository.
+- When current branch is `main`, first response must use AskUserQuestion to choose branch transition:
+   1) Switch to an existing local `dev/*` branch (enumerated)
+   2) Create a new `dev/*` branch
+   3) If creating, ask for branch name input in format `dev/<name>`
 
 Notes:
 

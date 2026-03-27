@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"hooks/hook_session_start.sh\""
+            "command": "bash -lc 'if [ -f \".claude/hooks/hook_session_start.sh\" ]; then bash \".claude/hooks/hook_session_start.sh\"; else bash \"hooks/hook_session_start.sh\"; fi'"
           }
         ]
       }
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"hooks/hook_prompt_submit.sh\""
+            "command": "bash -lc 'if [ -f \".claude/hooks/hook_prompt_submit.sh\" ]; then bash \".claude/hooks/hook_prompt_submit.sh\"; else bash \"hooks/hook_prompt_submit.sh\"; fi'"
           }
         ]
       }
@@ -40,12 +40,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"hooks/hook_stop.sh\"",
+            "command": "bash -lc 'if [ -f \".claude/hooks/hook_stop.sh\" ]; then bash \".claude/hooks/hook_stop.sh\"; else bash \"hooks/hook_stop.sh\"; fi'",
             "async": true
           },
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"hooks/windows_notification.ps1\" -Title \"Copilot Hooks\" -EventType stop",
+            "command": "bash -lc 'if [ -f \".claude/hooks/windows_notification.ps1\" ]; then powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/hooks/windows_notification.ps1\" -Title \"Copilot Hooks\" -EventType stop; else powershell -NoProfile -ExecutionPolicy Bypass -File \"hooks/windows_notification.ps1\" -Title \"Copilot Hooks\" -EventType stop; fi'",
             "async": true
           }
         ]
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"hooks/memory-observe.sh\" pre",
+            "command": "bash -lc 'if [ -f \".claude/hooks/memory-observe.sh\" ]; then bash \".claude/hooks/memory-observe.sh\" pre; else bash \"hooks/memory-observe.sh\" pre; fi'",
             "async": true
           }
         ]
@@ -69,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"hooks/memory-observe.sh\" post",
+            "command": "bash -lc 'if [ -f \".claude/hooks/memory-observe.sh\" ]; then bash \".claude/hooks/memory-observe.sh\" post; else bash \"hooks/memory-observe.sh\" post; fi'",
             "async": true
           }
         ]

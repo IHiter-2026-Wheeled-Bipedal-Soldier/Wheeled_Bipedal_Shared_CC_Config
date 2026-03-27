@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Auto checkpoint commit helper for hook-triggered commits.
 
 Responsibilities:
@@ -10,6 +11,7 @@ Responsibilities:
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import re
