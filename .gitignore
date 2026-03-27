@@ -1,0 +1,15 @@
+# Keil 编译产物
+STM32/Output/
+build/
+
+# 项目文件
+ProjectMemory/
+archive/
+
+# IDE 配置
+.vscode/
+.zed/
+.github/
+.obsidian/
+.agents/
+.codex/cache/
