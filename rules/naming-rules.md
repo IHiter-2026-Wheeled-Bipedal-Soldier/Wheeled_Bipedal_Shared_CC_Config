@@ -1,5 +1,18 @@
 # Naming Rules
 
+## Claude Config Naming (Current)
+
+Sources: `settings.json`, `hooks/auto-commit.py`.
+
+- Hook scripts follow `hook_<event>.sh` naming (for example: `hook_session_start.sh`, `hook_prompt_submit.sh`, `hook_stop.sh`).
+- Hook Python helper constants use `UPPER_CASE` (for example: `PREFIX_MAP`, `STATE_FILE_NAME`).
+- Hook Python helper function names use `snake_case`.
+- Session state file name is fixed as `git-session-state.json`.
+- Session state keys stay stable: `session_marker`, `git_init_prompted`, `git_init_decision`, `start_commit_done`, `updated_at`.
+- AskUserQuestion token names stay stable: `INIT_GIT_NOW`, `SKIP_GIT_THIS_SESSION`.
+- Checkpoint prefix tokens stay stable: `CPST-`, `CPED-`.
+- Collaboration branch naming convention remains `dev/<name>`.
+
 ## Project Rules (Highest Priority)
 
 Source: `ReadMe/ReadMe.txt`

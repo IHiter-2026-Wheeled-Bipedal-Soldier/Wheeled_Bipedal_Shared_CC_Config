@@ -140,6 +140,34 @@ Each project gets a 12-character hash ID (e.g., `a1b2c3d4e5f6`). A registry file
 
 Add to your `~/.claude/settings.json`.
 
+**Repository-local setup (this repository):**
+
+- This repository already enables `PreToolUse`/`PostToolUse` observer hooks in local `settings.json`.
+- Keep hook command paths in `.claude/*` preferred + local fallback style:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "*",
+      "hooks": [{
+        "type": "command",
+        "command": "bash -lc 'if [ -f \".claude/hooks/memory-observe.sh\" ]; then bash \".claude/hooks/memory-observe.sh\" pre; else bash \"hooks/memory-observe.sh\" pre; fi'",
+        "async": true
+      }]
+    }],
+    "PostToolUse": [{
+      "matcher": "*",
+      "hooks": [{
+        "type": "command",
+        "command": "bash -lc 'if [ -f \".claude/hooks/memory-observe.sh\" ]; then bash \".claude/hooks/memory-observe.sh\" post; else bash \"hooks/memory-observe.sh\" post; fi'",
+        "async": true
+      }]
+    }]
+  }
+}
+```
+
 **If installed as a plugin** (recommended):
 
 ```json

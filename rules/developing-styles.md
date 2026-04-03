@@ -1,5 +1,17 @@
 # Developing Styles
 
+## Claude Config Rules (Current)
+
+Sources: `settings.json`, `hooks/`.
+
+- Keep hook behavior deterministic and minimal-context.
+- Active git checkpoint events are only `UserPromptSubmit` (`CPST-`) and `Stop` (`CPED-`).
+- `CPST-` must run at most once per session; `CPED-` runs on session stop only when changes exist.
+- If workspace is not initialized as git, ask only once per session whether to run `git init`.
+- Do not reintroduce `TaskCompleted` auto-checkpoint or protected-branch hard-block logic unless explicitly required.
+- Hook commands in `settings.json` should keep `.claude/hooks/*` first and `hooks/*` fallback for submodule mounting compatibility.
+- Python helpers for hooks should keep UTF-8 safety and Windows-compatible interpreter detection strategy.
+
 ## Project Rules (Highest Priority)
 
 Sources: `ReadMe/ReadMe.txt`, user template file under `User/`.

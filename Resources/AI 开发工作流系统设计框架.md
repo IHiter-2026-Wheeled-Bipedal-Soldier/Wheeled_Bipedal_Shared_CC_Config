@@ -156,20 +156,20 @@ graph TB
 {
   "hooks": {
     "SessionStart": [{ "matcher": "startup|resume|clear|compact",
-      "hooks": [{ "type": "command", "command": "bash \"hooks/hook_session_start.sh\"" }] }],
+      "hooks": [{ "type": "command", "command": "bash -lc 'if [ -f \".claude/hooks/hook_session_start.sh\" ]; then bash \".claude/hooks/hook_session_start.sh\"; else bash \"hooks/hook_session_start.sh\"; fi'" }] }],
     "UserPromptSubmit": [{
-      "hooks": [{ "type": "command", "command": "bash \"hooks/hook_prompt_submit.sh\"" }] }],
+      "hooks": [{ "type": "command", "command": "bash -lc 'if [ -f \".claude/hooks/hook_prompt_submit.sh\" ]; then bash \".claude/hooks/hook_prompt_submit.sh\"; else bash \"hooks/hook_prompt_submit.sh\"; fi'" }] }],
     "Stop": [{
       "hooks": [
-        { "type": "command", "command": "bash \"hooks/hook_stop.sh\"", "async": true },
-        { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"hooks/windows_notification.ps1\" -Title \"Copilot Hooks\" -EventType stop", "async": true }
+        { "type": "command", "command": "bash -lc 'if [ -f \".claude/hooks/hook_stop.sh\" ]; then bash \".claude/hooks/hook_stop.sh\"; else bash \"hooks/hook_stop.sh\"; fi'", "async": true },
+        { "type": "command", "command": "bash -lc 'if [ -f \".claude/hooks/windows_notification.ps1\" ]; then powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/hooks/windows_notification.ps1\" -Title \"Copilot Hooks\" -EventType stop; else powershell -NoProfile -ExecutionPolicy Bypass -File \"hooks/windows_notification.ps1\" -Title \"Copilot Hooks\" -EventType stop; fi'", "async": true }
       ] }],
     "PreToolUse": [
       { "matcher": "*",
-        "hooks": [{ "type": "command", "command": "bash \"hooks/memory-observe.sh\" pre", "async": true }] }
+        "hooks": [{ "type": "command", "command": "bash -lc 'if [ -f \".claude/hooks/memory-observe.sh\" ]; then bash \".claude/hooks/memory-observe.sh\" pre; else bash \"hooks/memory-observe.sh\" pre; fi'", "async": true }] }
     ],
     "PostToolUse": [{ "matcher": "*",
-      "hooks": [{ "type": "command", "command": "bash \"hooks/memory-observe.sh\" post", "async": true }] }]
+      "hooks": [{ "type": "command", "command": "bash -lc 'if [ -f \".claude/hooks/memory-observe.sh\" ]; then bash \".claude/hooks/memory-observe.sh\" post; else bash \"hooks/memory-observe.sh\" post; fi'", "async": true }] }]
   }
 }
 ```
@@ -387,7 +387,7 @@ graph TB
 #### `continuous-learning-v2`（保留并升级到 v2.1）
 
 - **解耦状态（已完成）**:
-  - 活跃 hook/agent 入口迁移到 `.claude/hooks/` 与 `.claude/agents/`。
+  - 活跃 hook/agent 入口采用双路径兼容：优先 `.claude/hooks/` 与 `.claude/agents/`，回退到当前目录 `hooks/` 与 `agents/`。
 - **存储架构（已完成）**:
   - Global：`.claude/GlobalMemory/`
   - Project：`<project_root>/ProjectMemory/<project-hash>/`
@@ -494,16 +494,16 @@ sequenceDiagram
     participant CR as code-review
     participant SA as Subagents
 
-    Note over H,AI: SessionStart → 注入 workflow-guide.md
-    H->>AI: additionalContext(工作流说明)
+    Note over H,AI: SessionStart → 重置会话状态 + 注入最小上下文
+    H->>AI: additionalContext(最小运行时说明)
 
     Note over U,AI: 用户提交 prompt
-    H->>H: CPST-前十个字 checkpoint
-    H->>AI: additionalContext(当前分支 + 强制分支策略)
+    H->>H: CPST-自动摘要 checkpoint(每会话最多一次)
 
-    alt 当前分支是 main
-      AI->>U: AskUserQuestion(切换到现有 dev/* 分支(逐条枚举) / 创建新的 dev/* 分支 / 创建时输入 dev/<name>)
-    else 当前分支不是 main
+    alt 非 git 仓库且本会话尚未提问
+      H->>AI: additionalContext(一次性 AskUserQuestion: INIT_GIT_NOW / SKIP_GIT_THIS_SESSION)
+      AI->>U: AskUserQuestion(初始化 git / 本会话跳过)
+    else 其他情况
       AI->>U: 继续常规流程
     end
 
@@ -683,23 +683,23 @@ sequenceDiagram
 {
   "hooks": {
     "SessionStart": [{ "matcher": "startup|resume|clear|compact",
-      "hooks": [{ "type": "command", "command": "bash \"hooks/hook_session_start.sh\"" }] }],
+      "hooks": [{ "type": "command", "command": "bash -lc 'if [ -f \".claude/hooks/hook_session_start.sh\" ]; then bash \".claude/hooks/hook_session_start.sh\"; else bash \"hooks/hook_session_start.sh\"; fi'" }] }],
     "UserPromptSubmit": [{
-      "hooks": [{ "type": "command", "command": "bash \"hooks/hook_prompt_submit.sh\"" }] }],
+      "hooks": [{ "type": "command", "command": "bash -lc 'if [ -f \".claude/hooks/hook_prompt_submit.sh\" ]; then bash \".claude/hooks/hook_prompt_submit.sh\"; else bash \"hooks/hook_prompt_submit.sh\"; fi'" }] }],
     "Stop": [{
       "hooks": [
-        { "type": "command", "command": "bash \"hooks/hook_stop.sh\"", "async": true },
-        { "type": "command", "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"hooks/windows_notification.ps1\" -Title \"Copilot Hooks\" -EventType stop", "async": true }
+        { "type": "command", "command": "bash -lc 'if [ -f \".claude/hooks/hook_stop.sh\" ]; then bash \".claude/hooks/hook_stop.sh\"; else bash \"hooks/hook_stop.sh\"; fi'", "async": true },
+        { "type": "command", "command": "bash -lc 'if [ -f \".claude/hooks/windows_notification.ps1\" ]; then powershell -NoProfile -ExecutionPolicy Bypass -File \".claude/hooks/windows_notification.ps1\" -Title \"Copilot Hooks\" -EventType stop; else powershell -NoProfile -ExecutionPolicy Bypass -File \"hooks/windows_notification.ps1\" -Title \"Copilot Hooks\" -EventType stop; fi'", "async": true }
       ] }],
     "PreToolUse": [
       { "matcher": "*",
         "hooks": [{ "type": "command",
-          "command": "bash \"hooks/memory-observe.sh\" pre",
+          "command": "bash -lc 'if [ -f \".claude/hooks/memory-observe.sh\" ]; then bash \".claude/hooks/memory-observe.sh\" pre; else bash \"hooks/memory-observe.sh\" pre; fi'",
           "async": true }] }
     ],
     "PostToolUse": [{ "matcher": "*",
       "hooks": [{ "type": "command",
-        "command": "bash \"hooks/memory-observe.sh\" post",
+        "command": "bash -lc 'if [ -f \".claude/hooks/memory-observe.sh\" ]; then bash \".claude/hooks/memory-observe.sh\" post; else bash \"hooks/memory-observe.sh\" post; fi'",
         "async": true }] }]
   }
 }
