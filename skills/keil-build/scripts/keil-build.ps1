@@ -58,7 +58,21 @@ Write-Host "[BUILD] UV4: $uv4Path"
 Write-Host "[BUILD] Project: $projectPath"
 Write-Host "[BUILD] Log: $logPath"
 
-$uv4Args = @('-b', $projectPath, '-j0', '-t', 'Target', '-o', $logPath)
+# 读取工程内真实TargetName，避免硬编码导致构建未执行
+$targetName = 'Target'
+try {
+    [xml]$uvprojXml = Get-Content $projectPath -Raw
+    $targetNode = $uvprojXml.Project.Targets.Target | Select-Object -First 1
+    if ($null -ne $targetNode -and -not [string]::IsNullOrWhiteSpace($targetNode.TargetName)) {
+        $targetName = $targetNode.TargetName
+    }
+} catch {
+    Write-Host "[WARN] Failed to parse target name from uvprojx, fallback to default target: $targetName"
+}
+
+Write-Host "[BUILD] Target: $targetName"
+
+$uv4Args = @('-b', $projectPath, '-j0', '-t', $targetName, '-o', $logPath)
 $proc = Start-Process -FilePath $uv4Path -ArgumentList $uv4Args -Wait -PassThru -NoNewWindow
 
 # 读取结果
