@@ -13,6 +13,9 @@
       "mcp__MiniMax__understand_image",
       "WebSearch",
       "WebFetch(domain:docs.anthropic.com)"
+    ],
+    "additionalDirectories": [
+      "E:\\CODE_project\\BalanceSoldierLearn\\BSWholeCodebase\\CHASSIS_LuCKY_Latest_260405"
     ]
   }
 }

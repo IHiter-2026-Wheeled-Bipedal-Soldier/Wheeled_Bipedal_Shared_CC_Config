@@ -4,5 +4,17 @@
     "root": "e:\\CODE_project\\IHiter-2026-Wheeled-Bipedal-Soldier\\26_Infantry_01\\26_Infantry_01_Chassis_Main_Controller",
     "remote": "https://github.com/IHiter-2026-Wheeled-Bipedal-Soldier/26_Infantry_01_Chassis_Main_Controller.git",
     "last_seen": "2026-03-23T04:02:44.812671Z"
+  },
+  "ba4457fdab94": {
+    "name": "learn_config_01",
+    "root": "e:\\CODE_project\\BalanceSoldierLearn\\DaMiaoH7Learn\\dm_mc02_learn_config_01\\learn_config_01",
+    "remote": "",
+    "last_seen": "2026-04-06T15:08:57.844459Z"
+  },
+  "e80452a59b85": {
+    "name": "learn_config_01",
+    "root": "E:/CODE_project/BalanceSoldierLearn/DaMiaoH7Learn/dm_mc02_learn_config_01/learn_config_01",
+    "remote": "",
+    "last_seen": "2026-04-06T14:58:09.197408Z"
   }
 }
